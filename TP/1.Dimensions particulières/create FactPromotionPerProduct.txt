@@ -1,0 +1,238 @@
+/* =============================================================================
+   03C_CREATE_FactPromotionPerProduct.sql
+   
+   EXTENSION PÉDAGOGIQUE : FACTLESS FACT TABLE
+   
+   Ce script crée une table de faits sans mesures (Factless Fact Table)
+   pour modéliser la relation Many-to-Many entre DimProduct et DimPromotion.
+   
+   OBJECTIF PÉDAGOGIQUE :
+   ----------------------
+   Démontrer l'utilisation d'une table de faits SANS mesures numériques,
+   utilisée uniquement pour capturer des ÉVÉNEMENTS ou des RELATIONS.
+   
+   CAS D'USAGE :
+   -------------
+   • Définir quels produits sont éligibles à quelles promotions
+   • Analyser la couverture promotionnelle (combien de produits par promo)
+   • Identifier les produits jamais en promotion
+   • Compter les occurrences (avec COUNT)
+   
+   DIFFÉRENCE AVEC FactProductSales :
+   ----------------------------------
+   ✓ FactProductSales        : Table de faits avec mesures (Quantity, UnitPrice, etc.)
+   ✓ FactPromotionPerProduct : Table de faits SANS mesures (juste les relations)
+   
+   RELATION MODÉLISÉE :
+   --------------------
+   DimProduct ←→ FactPromotionPerProduct ←→ DimPromotion
+   
+   Exemple : iPhone 15 Pro est éligible aux promotions :
+   - Black Friday 2024
+   - Christmas 2024
+   - Summer Sale 2024
+   
+   ⚠️ IMPORTANT : Ce script NE MODIFIE PAS la structure existante
+   ⚠️ Il AJOUTE une nouvelle table indépendante
+   
+   Prérequis :
+   - Base dbo créée avec 01_CREATE_dbo_Structure.sql
+   - DimProduct et DimPromotion chargées avec 02A_LOAD_Dimensions.sql
+   
+   Durée : < 5 secondes
+   
+   ============================================================================= */
+
+USE dbo;
+GO
+
+SET NOCOUNT ON;
+GO
+
+PRINT '=================================================================';
+PRINT 'CRÉATION FactPromotionPerProduct (FACTLESS FACT TABLE)';
+PRINT '=================================================================';
+PRINT '';
+
+/* =============================================================================
+   ÉTAPE 1 : VÉRIFICATION ET NETTOYAGE
+   ============================================================================= */
+
+PRINT '1. Vérification de l''environnement...';
+PRINT '';
+
+-- Vérifier que DimProduct existe
+IF OBJECT_ID('dbo.DimProduct', 'U') IS NULL
+BEGIN
+    PRINT '✗ ERREUR : DimProduct n''existe pas !';
+    PRINT '  → Exécutez d''abord : 01_CREATE_dbo_Structure.sql';
+    PRINT '';
+    RETURN;
+END;
+
+PRINT '   ✓ DimProduct existe';
+
+-- Vérifier que DimPromotion existe
+IF OBJECT_ID('dbo.DimPromotion', 'U') IS NULL
+BEGIN
+    PRINT '✗ ERREUR : DimPromotion n''existe pas !';
+    PRINT '  → Exécutez d''abord : 01_CREATE_dbo_Structure.sql';
+    PRINT '';
+    RETURN;
+END;
+
+PRINT '   ✓ DimPromotion existe';
+
+-- Vérifier si la table existe déjà
+IF OBJECT_ID('dbo.FactPromotionPerProduct', 'U') IS NOT NULL
+BEGIN
+    PRINT '   ⚠️  FactPromotionPerProduct existe déjà';
+    PRINT '';
+    PRINT '   Suppression dans 3 secondes...';
+    
+    WAITFOR DELAY '00:00:03';
+    
+    PRINT '';
+    PRINT '   Suppression de la table existante...';
+    
+    DROP TABLE dbo.FactPromotionPerProduct;
+    
+    PRINT '      ✓ Table FactPromotionPerProduct supprimée';
+    PRINT '';
+END;
+
+PRINT '   ✓ Environnement prêt';
+PRINT '';
+
+/* =============================================================================
+   ÉTAPE 2 : CRÉATION DE LA TABLE DE FAITS SANS MESURES
+   ============================================================================= */
+
+PRINT '2. Création de FactPromotionPerProduct...';
+PRINT '';
+
+CREATE TABLE dbo.FactPromotionPerProduct
+(
+    -- ========== CLÉS DE DIMENSIONS (PAS DE MESURES !) ==========
+    -- C'est ce qui rend cette table "Factless" (sans faits)
+    
+    PromotionSK       INT NOT NULL,
+    ProductSK         INT NOT NULL,
+    
+    -- ========== ATTRIBUTS DESCRIPTIFS (OPTIONNELS) ==========
+    -- Ces attributs facilitent les requêtes sans jointures supplémentaires
+    
+    StartDate         DATE NOT NULL,           -- Date début de la promotion
+    EndDate           DATE NOT NULL,           -- Date fin de la promotion
+    IsActive          BIT NOT NULL DEFAULT 0,  -- Promotion active aujourd'hui ?
+    
+    -- ========== MÉTADONNÉES ETL ==========
+    ETL_InsertedDate  DATETIME2(0) NOT NULL DEFAULT GETDATE(),
+    ETL_SourceSystem  NVARCHAR(50) NULL DEFAULT 'dbo_Extension',
+    
+    -- ========== CONTRAINTES ==========
+    
+    -- Clé primaire composite (une ligne par combinaison Promotion-Product)
+    CONSTRAINT PK_FactPromotionPerProduct 
+        PRIMARY KEY CLUSTERED (PromotionSK, ProductSK),
+    
+    -- Foreign Key vers DimPromotion
+    CONSTRAINT FK_FactPromotionPerProduct_Promotion
+        FOREIGN KEY (PromotionSK) 
+        REFERENCES dbo.DimPromotion(PromotionSK)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+    
+    -- Foreign Key vers DimProduct
+    CONSTRAINT FK_FactPromotionPerProduct_Product
+        FOREIGN KEY (ProductSK) 
+        REFERENCES dbo.DimProduct(ProductSK)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE
+);
+
+PRINT '   ✓ Table FactPromotionPerProduct créée';
+PRINT '';
+
+-- Afficher la structure
+PRINT '   Structure de la table :';
+PRINT '   ┌─────────────────────┬──────────────┬──────────────┐';
+PRINT '   │ Colonne             │ Type         │ Description  │';
+PRINT '   ├─────────────────────┼──────────────┼──────────────┤';
+PRINT '   │ PromotionSK (PK)    │ INT          │ FK → DimPromotion';
+PRINT '   │ ProductSK (PK)      │ INT          │ FK → DimProduct';
+PRINT '   │ StartDate           │ DATE         │ Dénormalisation';
+PRINT '   │ EndDate             │ DATE         │ Dénormalisation';
+PRINT '   │ IsActive            │ BIT          │ Statut actuel';
+PRINT '   │ ETL_InsertedDate    │ DATETIME2    │ Métadonnées';
+PRINT '   └─────────────────────┴──────────────┴──────────────┘';
+PRINT '';
+
+/* =============================================================================
+   ÉTAPE 3 : CRÉATION DES INDEX
+   ============================================================================= */
+
+PRINT '3. Création des index de performance...';
+PRINT '';
+
+-- Index pour les requêtes par produit
+-- Exemple : "Quelles promotions s'appliquent au produit X ?"
+CREATE INDEX IX_FactPromotionPerProduct_ProductSK 
+    ON dbo.FactPromotionPerProduct(ProductSK);
+
+PRINT '   ✓ Index IX_FactPromotionPerProduct_ProductSK créé';
+
+-- Index pour les requêtes par période
+-- Exemple : "Quelles promotions sont actives en décembre 2024 ?"
+CREATE INDEX IX_FactPromotionPerProduct_Dates 
+    ON dbo.FactPromotionPerProduct(StartDate, EndDate);
+
+PRINT '   ✓ Index IX_FactPromotionPerProduct_Dates créé';
+
+-- Index pour les promotions actives
+-- Exemple : "Quelles sont toutes les combinaisons produit-promo actives ?"
+CREATE INDEX IX_FactPromotionPerProduct_IsActive 
+    ON dbo.FactPromotionPerProduct(IsActive)
+    WHERE IsActive = 1;
+
+PRINT '   ✓ Index IX_FactPromotionPerProduct_IsActive créé (filtré)';
+
+PRINT '';
+
+/* =============================================================================
+   RÉCAPITULATIF
+   ============================================================================= */
+
+PRINT '=================================================================';
+PRINT '✓✓✓ FactPromotionPerProduct CRÉÉE AVEC SUCCÈS ✓✓✓';
+PRINT '=================================================================';
+PRINT '';
+PRINT 'Type de table : FACTLESS FACT TABLE';
+PRINT '';
+PRINT 'Caractéristiques :';
+PRINT '  ✓ Pas de mesures numériques (Quantity, Amount, etc.)';
+PRINT '  ✓ Capture uniquement des RELATIONS entre dimensions';
+PRINT '  ✓ Clé primaire composite (PromotionSK, ProductSK)';
+PRINT '  ✓ 2 Foreign Keys vers DimPromotion et DimProduct';
+PRINT '  ✓ 3 index de performance';
+PRINT '';
+PRINT 'Relation modélisée :';
+PRINT '  DimProduct ←→ FactPromotionPerProduct ←→ DimPromotion';
+PRINT '';
+PRINT 'Cas d''usage :';
+PRINT '  • Définir l''éligibilité produit-promotion';
+PRINT '  • Analyser la couverture promotionnelle';
+PRINT '  • Identifier les produits jamais en promotion';
+PRINT '  • Compter les combinaisons (COUNT)';
+PRINT '';
+PRINT 'Exemples de questions business :';
+PRINT '  ❓ Combien de produits sont éligibles à Black Friday ?';
+PRINT '  ❓ Quels produits n''ont jamais été en promotion ?';
+PRINT '  ❓ Quelle promotion couvre le plus de produits ?';
+PRINT '  ❓ Quels produits ont plus de 5 promotions ?';
+PRINT '';
+PRINT 'Prochaine étape :';
+PRINT '  → Exécuter : 03D_LOAD_FactPromotionPerProduct.sql';
+PRINT '';
+
+GO

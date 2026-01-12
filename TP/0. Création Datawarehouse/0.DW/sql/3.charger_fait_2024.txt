@@ -1,0 +1,368 @@
+/* =============================================================================
+   02C_LOAD_Facts_2024.sql
+   
+   TECHMART ELECTRONICS - CHARGEMENT TABLE DE FAITS 2024
+   
+   Génère environ 11,000 transactions pour 2024 (année complète) avec :
+   ★ Quantity diversifiée (1-5 selon produit)
+   ★ DiscountAmount (0-30%)
+   ★ TaxAmount (20% TVA)
+   ★ PromotionAmount
+   ★ CampaignCost
+   ★ DefectQuantity (0-2%)
+   
+   Durée estimée : 3-5 minutes
+   
+   ============================================================================= */
+
+USE DW;
+GO
+
+SET NOCOUNT ON;
+GO
+
+PRINT '=================================================================';
+PRINT 'CHARGEMENT TABLE DE FAITS 2024';
+PRINT '=================================================================';
+PRINT '';
+PRINT 'Génération de ~11,000 transactions pour 2024...';
+PRINT '';
+
+-- Table de staging
+IF OBJECT_ID('tempdb..#StagingSales2024') IS NOT NULL DROP TABLE #StagingSales2024;
+
+CREATE TABLE #StagingSales2024 (
+    InvoiceNumber NVARCHAR(30),
+    InvoiceLineNumber SMALLINT,
+    SaleDateTime DATETIME2(0),
+    StoreID INT,
+    CustomerID INT,
+    ProductID INT,
+    SalesPersonID INT,
+    PromotionID INT,
+    CampaignID INT,
+    Quantity INT,
+    UnitPrice DECIMAL(18,2),
+    DiscountAmount DECIMAL(18,2),
+    TaxAmount DECIMAL(18,2),
+    PromotionAmount DECIMAL(18,2),
+    CampaignCost DECIMAL(18,2),
+    DefectQuantity INT
+);
+
+PRINT 'Table de staging créée';
+PRINT '';
+
+-- Variables
+DECLARE @InvoiceCounter INT = 300000;
+DECLARE @YearStart DATE = '2024-01-01';
+DECLARE @YearEnd DATE = '2024-12-31';
+DECLARE @GenDate DATE = @YearStart;
+
+PRINT 'Génération année 2024...';
+
+-- Boucle sur chaque jour de 2024
+WHILE @GenDate <= @YearEnd
+BEGIN
+    DECLARE @MonthG INT = MONTH(@GenDate);
+    DECLARE @DayG INT = DAY(@GenDate);
+    DECLARE @DOWG INT = DATEPART(WEEKDAY, @GenDate);
+    
+    -- Nombre de transactions du jour (volume mature 100%)
+    DECLARE @DailyTrans INT = CASE 
+        WHEN @MonthG = 11 AND @DOWG = 6 AND @DayG >= 22 THEN 300  -- Black Friday
+        WHEN @MonthG = 12 AND @DOWG = 2 AND @DayG <= 3 THEN 250   -- Cyber Monday  
+        WHEN @MonthG = 12 AND @DayG BETWEEN 18 AND 24 THEN 150    -- Noël
+        WHEN @MonthG = 12 AND @DayG IN (25, 26) THEN 50           -- Jours fériés
+        WHEN @DOWG IN (1, 7) THEN 100                             -- Weekend
+        ELSE 85                                                    -- Jour normal
+    END;
+    
+    DECLARE @TransCount INT = 0;
+    
+    -- Générer les transactions du jour
+    WHILE @TransCount < @DailyTrans
+    BEGIN
+        SET @InvoiceCounter = @InvoiceCounter + 1;
+        
+        -- Heure de vente (10h-20h)
+        DECLARE @RH INT = 10 + (ABS(CHECKSUM(NEWID())) % 11);
+        DECLARE @RM INT = ABS(CHECKSUM(NEWID())) % 60;
+        DECLARE @SaleDT DATETIME2(0) = CAST(
+            CAST(@GenDate AS VARCHAR) + ' ' +
+            RIGHT('0' + CAST(@RH AS VARCHAR), 2) + ':' +
+            RIGHT('0' + CAST(@RM AS VARCHAR), 2) + ':00'
+            AS DATETIME2(0)
+        );
+        
+        -- Magasin (distribution réaliste)
+        DECLARE @RS INT = ABS(CHECKSUM(NEWID())) % 100;
+        DECLARE @StoreID INT = CASE 
+            WHEN @RS < 15 THEN 1  -- Tunis 15%
+            WHEN @RS < 50 THEN 2  -- Paris 35%
+            WHEN @RS < 80 THEN 3  -- Berlin 30%
+            WHEN @RS < 90 THEN 4  -- Casablanca 10%
+            ELSE 5                -- Lyon 10%
+        END;
+        
+        -- Vendeur du magasin
+        DECLARE @SPID INT = CASE @StoreID
+            WHEN 1 THEN 501 + (ABS(CHECKSUM(NEWID())) % 3)
+            WHEN 2 THEN 504 + (ABS(CHECKSUM(NEWID())) % 4)
+            WHEN 3 THEN 508 + (ABS(CHECKSUM(NEWID())) % 3)
+            WHEN 4 THEN 511 + (ABS(CHECKSUM(NEWID())) % 2)
+            ELSE 513 + (ABS(CHECKSUM(NEWID())) % 3)
+        END;
+        
+        -- Client (préférence locale)
+        DECLARE @CustID INT = CASE @StoreID
+            WHEN 1 THEN 1 + (ABS(CHECKSUM(NEWID())) % 200)
+            WHEN 2 THEN 101 + (ABS(CHECKSUM(NEWID())) % 150)
+            WHEN 3 THEN 201 + (ABS(CHECKSUM(NEWID())) % 100)
+            WHEN 4 THEN 301 + (ABS(CHECKSUM(NEWID())) % 50)
+            ELSE 101 + (ABS(CHECKSUM(NEWID())) % 150)
+        END;
+        
+        -- Produit (mix catégories avec préférence smartphones en 2024)
+        DECLARE @CatR INT = ABS(CHECKSUM(NEWID())) % 100;
+        DECLARE @ProdID INT = CASE 
+            WHEN @CatR < 42 THEN 1001 + (ABS(CHECKSUM(NEWID())) % 15)  -- Smartphone 42%
+            WHEN @CatR < 65 THEN 1016 + (ABS(CHECKSUM(NEWID())) % 15)  -- Laptop 23%
+            WHEN @CatR < 80 THEN 1031 + (ABS(CHECKSUM(NEWID())) % 10)  -- Tablet 15%
+            ELSE 1041 + (ABS(CHECKSUM(NEWID())) % 10)                  -- Accessory 20%
+        END;
+        
+        -- ★ QUANTITY DIVERSIFIÉE selon type produit
+        DECLARE @Qty INT = CASE 
+            WHEN @ProdID >= 1041 THEN 1 + (ABS(CHECKSUM(NEWID())) % 5)  -- Accessories: 1-5
+            WHEN @ProdID >= 1031 THEN 1 + (ABS(CHECKSUM(NEWID())) % 2)  -- Tablets: 1-2
+            WHEN @ProdID >= 1016 THEN 1                                   -- Laptops: 1
+            ELSE 1 + (ABS(CHECKSUM(NEWID())) % 2)                        -- Smartphones: 1-2
+        END;
+        
+        -- Prix unitaire (prix actuels 2024)
+        DECLARE @UnitPrice DECIMAL(18,2);
+        
+        SELECT @UnitPrice = CAST(ListPrice AS DECIMAL(18,2))
+        FROM dw.DimProduct WHERE ProductBK = @ProdID;
+        
+        -- Montant brut
+        DECLARE @SubTotal DECIMAL(18,2) = @Qty * @UnitPrice;
+        
+        -- ★ PROMOTION active ce jour
+        DECLARE @PromoID INT = -1;
+        DECLARE @DiscPct DECIMAL(5,2) = 0;
+        
+        -- Vérifier si promotion active ET si client éligible (70% de chance si promo active)
+        IF ABS(CHECKSUM(NEWID())) % 100 < 70
+        BEGIN
+            SELECT TOP 1 
+                @PromoID = PromotionBK,
+                @DiscPct = DiscountPercent
+            FROM dw.DimPromotion
+            WHERE @GenDate BETWEEN StartDate AND EndDate
+              AND PromotionSK > 0
+              AND (TargetCategory = 'All' OR TargetCategory = (SELECT Category FROM dw.DimProduct WHERE ProductBK = @ProdID))
+            ORDER BY DiscountPercent DESC;
+        END;
+        
+        IF @PromoID IS NULL SET @PromoID = -1;
+        
+        -- ★ DISCOUNT AMOUNT
+        DECLARE @DiscAmt DECIMAL(18,2) = CASE 
+            WHEN @PromoID > 0 THEN (@DiscPct / 100.0) * @SubTotal
+            ELSE 0
+        END;
+        
+        -- ★ PROMOTION AMOUNT (contribution marketing)
+        DECLARE @PromoAmt DECIMAL(18,2) = CASE 
+            WHEN @PromoID > 0 THEN @DiscAmt * 0.60  -- 60% du discount = coût promo
+            ELSE 0
+        END;
+        
+        -- ★ CAMPAIGN active
+        DECLARE @CampID INT = -1;
+        DECLARE @CampCost DECIMAL(18,2) = 0;
+        
+        SELECT TOP 1 
+            @CampID = CampaignBK,
+            @CampCost = BudgetAmount / NULLIF(
+                DATEDIFF(DAY, LaunchDate, ISNULL(EndDate, DATEADD(MONTH, 3, LaunchDate))) * 85, 0
+            )
+        FROM dw.DimCampaign
+        WHERE @GenDate BETWEEN LaunchDate AND ISNULL(EndDate, DATEADD(MONTH, 3, LaunchDate))
+          AND CampaignSK > 0;
+        
+        IF @CampID IS NULL SET @CampID = -1;
+        IF @CampCost IS NULL OR @CampCost < 0 SET @CampCost = 0;
+        
+        -- ★ TAX AMOUNT (20% TVA Europe)
+        DECLARE @TaxAmt DECIMAL(18,2) = (@SubTotal - @DiscAmt) * 0.20;
+        
+        -- ★ DEFECT QUANTITY (0-2% aléatoire)
+        DECLARE @DefectQty INT = CASE 
+            WHEN ABS(CHECKSUM(NEWID())) % 100 < 2 THEN 1  -- 2% de chance de défaut
+            ELSE 0
+        END;
+        
+        -- Nombre de lignes dans la facture (1-3)
+        DECLARE @LineCount SMALLINT = 1 + (ABS(CHECKSUM(NEWID())) % 3);
+        DECLARE @LineNum SMALLINT = 1;
+        
+        WHILE @LineNum <= @LineCount
+        BEGIN
+            INSERT INTO #StagingSales2024 VALUES (
+                'INV-2024-' + RIGHT('000000' + CAST(@InvoiceCounter AS VARCHAR), 6),
+                @LineNum,
+                @SaleDT,
+                @StoreID,
+                @CustID,
+                @ProdID,
+                @SPID,
+                @PromoID,
+                @CampID,
+                @Qty,
+                @UnitPrice,
+                @DiscAmt,
+                @TaxAmt,
+                @PromoAmt,
+                @CampCost,
+                @DefectQty
+            );
+            
+            SET @LineNum = @LineNum + 1;
+        END;
+        
+        SET @TransCount = @TransCount + 1;
+    END;
+    
+    SET @GenDate = DATEADD(DAY, 1, @GenDate);
+END;
+
+DECLARE @TotalStaging INT;
+SELECT @TotalStaging = COUNT(*) FROM #StagingSales2024;
+PRINT '  ✓ ' + CAST(@TotalStaging AS VARCHAR) + ' lignes générées pour 2024';
+PRINT '';
+
+/* =============================================================================
+   CHARGEMENT DANS LA TABLE DE FAITS
+   ============================================================================= */
+
+PRINT 'Insertion dans FactProductSales...';
+PRINT '';
+
+BEGIN TRY
+    INSERT INTO dw.FactProductSales (
+        DateSK, TimeSK, StoreSK, CustomerSK, ProductSK, SalesPersonSK,
+        PromotionSK, CampaignSK,
+        SalesInvoiceNumber, InvoiceLineNumber,
+        Quantity, UnitPrice, DiscountAmount, TaxAmount,
+        PromotionAmount, CampaignCost, DefectQuantity
+    )
+    SELECT
+        dd.DateSK,
+        dt.TimeSK,
+        ds.StoreSK,
+        dc.CustomerSK,
+        dp.ProductSK,
+        dsp.SalesPersonSK,
+        ISNULL(dprom.PromotionSK, -1),
+        ISNULL(dcam.CampaignSK, -1),
+        s.InvoiceNumber,
+        s.InvoiceLineNumber,
+        s.Quantity,
+        s.UnitPrice,
+        s.DiscountAmount,
+        s.TaxAmount,
+        s.PromotionAmount,
+        s.CampaignCost,
+        s.DefectQuantity
+    FROM #StagingSales2024 s
+        INNER JOIN dw.DimDate dd ON CAST(s.SaleDateTime AS DATE) = dd.DateBK
+        INNER JOIN dw.DimTime dt ON CAST(s.SaleDateTime AS TIME(0)) = dt.TimeBK
+        INNER JOIN dw.DimStore ds ON s.StoreID = ds.StoreBK
+        INNER JOIN dw.DimCustomer dc ON s.CustomerID = dc.CustomerBK
+        INNER JOIN dw.DimProduct dp ON s.ProductID = dp.ProductBK
+        INNER JOIN dw.DimSalesPerson dsp ON s.SalesPersonID = dsp.SalesPersonBK
+        LEFT JOIN dw.DimPromotion dprom ON s.PromotionID = dprom.PromotionBK
+        LEFT JOIN dw.DimCampaign dcam ON s.CampaignID = dcam.CampaignBK;
+    
+    DECLARE @InsertedRows INT = @@ROWCOUNT;
+    PRINT '✓ ' + CAST(@InsertedRows AS VARCHAR) + ' lignes insérées dans FactProductSales';
+    PRINT '';
+    
+END TRY
+BEGIN CATCH
+    PRINT '';
+    PRINT '✗ ERREUR lors de l''insertion :';
+    PRINT 'Message : ' + ERROR_MESSAGE();
+    PRINT 'Ligne   : ' + CAST(ERROR_LINE() AS VARCHAR);
+    RETURN;
+END CATCH;
+
+/* =============================================================================
+   STATISTIQUES FINALES (TOUTES ANNÉES)
+   ============================================================================= */
+
+PRINT '=================================================================';
+PRINT 'STATISTIQUES COMPLÈTES 2022-2024';
+PRINT '=================================================================';
+PRINT '';
+
+SELECT
+    d.YearNumber AS [Année],
+    COUNT(*) AS [Nb Lignes],
+    COUNT(DISTINCT f.SalesInvoiceNumber) AS [Nb Factures],
+    CAST(SUM(f.SubTotal) AS DECIMAL(18,2)) AS [CA Brut],
+    CAST(SUM(f.DiscountAmount) AS DECIMAL(18,2)) AS [Total Remises],
+    CAST(SUM(f.TaxAmount) AS DECIMAL(18,2)) AS [Total TVA],
+    CAST(SUM(f.TotalAmount) AS DECIMAL(18,2)) AS [CA TTC],
+    CAST(AVG(f.TotalAmount) AS DECIMAL(18,2)) AS [Panier Moyen]
+FROM dw.FactProductSales f
+INNER JOIN dw.DimDate d ON f.DateSK = d.DateSK
+GROUP BY d.YearNumber
+ORDER BY d.YearNumber;
+
+PRINT '';
+
+-- Croissance YoY
+WITH YearlySales AS (
+    SELECT
+        d.YearNumber,
+        SUM(f.TotalAmount) AS CA
+    FROM dw.FactProductSales f
+    INNER JOIN dw.DimDate d ON f.DateSK = d.DateSK
+    GROUP BY d.YearNumber
+)
+SELECT
+    YearNumber AS [Année],
+    CAST(CA AS DECIMAL(18,2)) AS [CA (EUR)],
+    CAST(LAG(CA) OVER (ORDER BY YearNumber) AS DECIMAL(18,2)) AS [CA N-1],
+    CAST(
+        CASE 
+            WHEN LAG(CA) OVER (ORDER BY YearNumber) > 0
+            THEN ((CA - LAG(CA) OVER (ORDER BY YearNumber)) / LAG(CA) OVER (ORDER BY YearNumber) * 100)
+            ELSE NULL
+        END AS DECIMAL(10,2)
+    ) AS [Croissance %]
+FROM YearlySales
+ORDER BY YearNumber;
+
+PRINT '';
+PRINT '=================================================================';
+PRINT '✓✓✓ CHARGEMENT COMPLET TERMINÉ AVEC SUCCÈS ✓✓✓';
+PRINT '=================================================================';
+PRINT '';
+PRINT 'Votre Data Warehouse est maintenant complet avec :';
+PRINT '  ✓ 8 Dimensions chargées';
+PRINT '  ✓ ~65,000 transactions (2022-2024)';
+PRINT '  ✓ Toutes les mesures : Quantity, Discount, Tax, Promotion, Campaign, Defect';
+PRINT '';
+PRINT 'Vous pouvez maintenant :';
+PRINT '  → Analyser les données avec Power BI';
+PRINT '  → Créer des rapports SSRS';
+PRINT '  → Développer un cube SSAS';
+PRINT '  → Utiliser pour la formation BI';
+PRINT '';
+
+GO

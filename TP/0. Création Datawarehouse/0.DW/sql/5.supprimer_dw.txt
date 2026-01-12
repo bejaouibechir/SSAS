@@ -1,0 +1,87 @@
+/* =============================================================================
+   DROP_DW_Complete.sql
+   
+   Script de suppression COMPLÈTE de la base de données
+   
+   ⚠️  ATTENTION : Ce script supprime TOUT (structure + données)
+   
+   Utilisation :
+   - Quand vous voulez recommencer COMPLÈTEMENT from scratch
+   - Pour nettoyer complètement l'environnement
+   - Avant de recréer avec 01_CREATE_DW_Structure.sql
+   
+   Après ce script, vous devrez :
+   1. Re-exécuter 01_CREATE_DW_Structure.sql
+   2. Re-exécuter 02A_LOAD_Dimensions.sql
+   3. Re-exécuter 02B et 02C
+   
+   Durée : < 5 secondes
+   
+   ============================================================================= */
+
+USE master;
+GO
+
+PRINT '=================================================================';
+PRINT '⚠️  SUPPRESSION COMPLÈTE DE LA BASE DE DONNÉES DW';
+PRINT '=================================================================';
+PRINT '';
+PRINT '⚠️  ATTENTION : Cette opération est IRRÉVERSIBLE !';
+PRINT '⚠️  TOUTES les données ET la structure seront supprimées !';
+PRINT '';
+PRINT 'Appuyez sur F5 pour continuer...';
+PRINT '';
+
+-- Pause de sécurité
+WAITFOR DELAY '00:00:03';
+
+PRINT 'Vérification de l''existence de la base...';
+
+IF DB_ID('DW') IS NOT NULL
+BEGIN
+    PRINT '   ✓ Base DW trouvée';
+    PRINT '';
+    
+    PRINT 'Fermeture des connexions actives...';
+    
+    -- Forcer la fermeture de toutes les connexions
+    ALTER DATABASE DW SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+    
+    PRINT '   ✓ Connexions fermées';
+    PRINT '';
+    
+    PRINT 'Suppression de la base de données...';
+    
+    -- Supprimer la base
+    DROP DATABASE DW;
+    
+    PRINT '   ✓ Base de données DW supprimée';
+    PRINT '';
+    
+    PRINT '=================================================================';
+    PRINT '✓✓✓ SUPPRESSION TERMINÉE AVEC SUCCÈS ✓✓✓';
+    PRINT '=================================================================';
+    PRINT '';
+    PRINT 'La base de données DW a été complètement supprimée.';
+    PRINT '';
+    PRINT 'Pour recommencer from scratch :';
+    PRINT '  1. Exécuter : 01_CREATE_DW_Structure.sql';
+    PRINT '  2. Exécuter : 02A_LOAD_Dimensions.sql';
+    PRINT '  3. Exécuter : 02B_LOAD_Facts_2022_2023.sql';
+    PRINT '  4. Exécuter : 02C_LOAD_Facts_2024.sql';
+    PRINT '';
+END
+ELSE
+BEGIN
+    PRINT '   ℹ️  La base de données DW n''existe pas';
+    PRINT '';
+    PRINT '=================================================================';
+    PRINT 'RIEN À SUPPRIMER';
+    PRINT '=================================================================';
+    PRINT '';
+    PRINT 'Pour créer la base :';
+    PRINT '  → Exécuter : 01_CREATE_DW_Structure.sql';
+    PRINT '';
+END
+
+GO

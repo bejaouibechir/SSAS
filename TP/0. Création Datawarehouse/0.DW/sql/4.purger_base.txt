@@ -1,0 +1,243 @@
+/* =============================================================================
+   PURGE_DW_Complete.sql
+   
+   Script de purge complète du Data Warehouse
+   
+   Ce script permet de :
+   - Vider toutes les tables (dimensions + faits)
+   - Réinitialiser les IDENTITY
+   - Conserver la structure intacte
+   - Réinsérer les valeurs par défaut
+   
+   Utilisation :
+   - Quand vous voulez recommencer le chargement à zéro
+   - Pour nettoyer des données de test
+   - Avant de recharger avec des scripts corrigés
+   
+   Durée : < 10 secondes
+   
+   ============================================================================= */
+
+USE DW;
+GO
+
+SET NOCOUNT ON;
+GO
+
+PRINT '=================================================================';
+PRINT 'PURGE COMPLÈTE DU DATA WAREHOUSE';
+PRINT '=================================================================';
+PRINT '';
+PRINT '⚠️  ATTENTION : Cette opération va supprimer TOUTES les données !';
+PRINT '⚠️  La structure (tables, colonnes, index) sera conservée.';
+PRINT '';
+PRINT 'Appuyez sur F5 pour continuer...';
+PRINT '';
+
+-- Pause pour laisser le temps de réfléchir
+WAITFOR DELAY '00:00:03';
+
+PRINT 'Démarrage de la purge...';
+PRINT '';
+
+/* =============================================================================
+   ÉTAPE 1 : DÉSACTIVATION DES CONTRAINTES FK
+   ============================================================================= */
+
+PRINT '1. Désactivation des contraintes FK...';
+
+-- Désactiver toutes les contraintes FK
+EXEC sp_MSforeachtable 'ALTER TABLE ? NOCHECK CONSTRAINT ALL';
+
+PRINT '   ✓ Contraintes FK désactivées';
+PRINT '';
+
+/* =============================================================================
+   ÉTAPE 2 : PURGE DE LA TABLE DE FAITS
+   ============================================================================= */
+
+PRINT '2. Purge de la table de faits...';
+
+DECLARE @FactCount INT;
+SELECT @FactCount = COUNT(*) FROM dw.FactProductSales;
+
+TRUNCATE TABLE dw.FactProductSales;
+
+PRINT '   ✓ FactProductSales purgée (' + CAST(@FactCount AS VARCHAR) + ' lignes supprimées)';
+PRINT '';
+
+/* =============================================================================
+   ÉTAPE 3 : PURGE DES DIMENSIONS
+   ============================================================================= */
+
+PRINT '3. Purge des dimensions...';
+
+-- DimPromotion (conserver la valeur par défaut -1)
+DECLARE @PromoCount INT;
+SELECT @PromoCount = COUNT(*) FROM dw.DimPromotion WHERE PromotionSK > 0;
+DELETE FROM dw.DimPromotion WHERE PromotionSK > 0;
+PRINT '   ✓ DimPromotion purgée (' + CAST(@PromoCount AS VARCHAR) + ' lignes supprimées, valeur par défaut conservée)';
+
+-- DimCampaign (conserver la valeur par défaut -1)
+DECLARE @CampCount INT;
+SELECT @CampCount = COUNT(*) FROM dw.DimCampaign WHERE CampaignSK > 0;
+DELETE FROM dw.DimCampaign WHERE CampaignSK > 0;
+PRINT '   ✓ DimCampaign purgée (' + CAST(@CampCount AS VARCHAR) + ' lignes supprimées, valeur par défaut conservée)';
+
+-- DimSalesPerson
+DECLARE @SPCount INT;
+SELECT @SPCount = COUNT(*) FROM dw.DimSalesPerson;
+TRUNCATE TABLE dw.DimSalesPerson;
+PRINT '   ✓ DimSalesPerson purgée (' + CAST(@SPCount AS VARCHAR) + ' lignes supprimées)';
+
+-- DimStore
+DECLARE @StoreCount INT;
+SELECT @StoreCount = COUNT(*) FROM dw.DimStore;
+TRUNCATE TABLE dw.DimStore;
+PRINT '   ✓ DimStore purgée (' + CAST(@StoreCount AS VARCHAR) + ' lignes supprimées)';
+
+-- DimProduct
+DECLARE @ProdCount INT;
+SELECT @ProdCount = COUNT(*) FROM dw.DimProduct;
+TRUNCATE TABLE dw.DimProduct;
+PRINT '   ✓ DimProduct purgée (' + CAST(@ProdCount AS VARCHAR) + ' lignes supprimées)';
+
+-- DimCustomer
+DECLARE @CustCount INT;
+SELECT @CustCount = COUNT(*) FROM dw.DimCustomer;
+TRUNCATE TABLE dw.DimCustomer;
+PRINT '   ✓ DimCustomer purgée (' + CAST(@CustCount AS VARCHAR) + ' lignes supprimées)';
+
+-- DimTime
+DECLARE @TimeCount INT;
+SELECT @TimeCount = COUNT(*) FROM dw.DimTime;
+TRUNCATE TABLE dw.DimTime;
+PRINT '   ✓ DimTime purgée (' + CAST(@TimeCount AS VARCHAR) + ' lignes supprimées)';
+
+-- DimDate
+DECLARE @DateCount INT;
+SELECT @DateCount = COUNT(*) FROM dw.DimDate;
+TRUNCATE TABLE dw.DimDate;
+PRINT '   ✓ DimDate purgée (' + CAST(@DateCount AS VARCHAR) + ' lignes supprimées)';
+
+PRINT '';
+
+/* =============================================================================
+   ÉTAPE 4 : RÉINITIALISATION DES IDENTITY
+   ============================================================================= */
+
+PRINT '4. Réinitialisation des compteurs IDENTITY...';
+
+-- Réinitialiser les IDENTITY (permet de repartir à 1)
+DBCC CHECKIDENT ('dw.DimDate', RESEED, 0);
+DBCC CHECKIDENT ('dw.DimTime', RESEED, 0);
+DBCC CHECKIDENT ('dw.DimCustomer', RESEED, 0);
+DBCC CHECKIDENT ('dw.DimProduct', RESEED, 0);
+DBCC CHECKIDENT ('dw.DimStore', RESEED, 0);
+DBCC CHECKIDENT ('dw.DimSalesPerson', RESEED, 0);
+DBCC CHECKIDENT ('dw.DimPromotion', RESEED, 0);
+DBCC CHECKIDENT ('dw.DimCampaign', RESEED, 0);
+
+PRINT '   ✓ Compteurs IDENTITY réinitialisés';
+PRINT '';
+
+/* =============================================================================
+   ÉTAPE 5 : RÉINSERTION DES VALEURS PAR DÉFAUT
+   ============================================================================= */
+
+PRINT '5. Réinsertion des valeurs par défaut...';
+
+-- Réinsérer la promotion par défaut
+SET IDENTITY_INSERT dw.DimPromotion ON;
+
+IF NOT EXISTS (SELECT 1 FROM dw.DimPromotion WHERE PromotionSK = -1)
+BEGIN
+    INSERT INTO dw.DimPromotion (
+        PromotionSK, PromotionBK, PromotionName, PromotionType, 
+        DiscountPercent, StartDate, EndDate
+    )
+    VALUES (
+        -1, -1, 'No Promotion', 'None', 0, '1900-01-01', '9999-12-31'
+    );
+    PRINT '   ✓ Promotion par défaut réinsérée';
+END;
+
+SET IDENTITY_INSERT dw.DimPromotion OFF;
+
+-- Réinsérer la campagne par défaut
+SET IDENTITY_INSERT dw.DimCampaign ON;
+
+IF NOT EXISTS (SELECT 1 FROM dw.DimCampaign WHERE CampaignSK = -1)
+BEGIN
+    INSERT INTO dw.DimCampaign (
+        CampaignSK, CampaignBK, CampaignName, CampaignType, 
+        LaunchDate, BudgetAmount
+    )
+    VALUES (
+        -1, -1, 'No Campaign', 'None', '1900-01-01', 0
+    );
+    PRINT '   ✓ Campagne par défaut réinsérée';
+END;
+
+SET IDENTITY_INSERT dw.DimCampaign OFF;
+
+PRINT '';
+
+/* =============================================================================
+   ÉTAPE 6 : RÉACTIVATION DES CONTRAINTES FK
+   ============================================================================= */
+
+PRINT '6. Réactivation des contraintes FK...';
+
+-- Réactiver toutes les contraintes FK
+EXEC sp_MSforeachtable 'ALTER TABLE ? WITH CHECK CHECK CONSTRAINT ALL';
+
+PRINT '   ✓ Contraintes FK réactivées';
+PRINT '';
+
+/* =============================================================================
+   ÉTAPE 7 : VÉRIFICATION FINALE
+   ============================================================================= */
+
+PRINT '7. Vérification finale...';
+PRINT '';
+
+SELECT 
+    'DimDate' AS [Table],
+    COUNT(*) AS [Lignes],
+    CASE WHEN COUNT(*) = 0 THEN '✓' ELSE '✗' END AS [Statut]
+FROM dw.DimDate
+UNION ALL
+SELECT 'DimTime', COUNT(*), CASE WHEN COUNT(*) = 0 THEN '✓' ELSE '✗' END FROM dw.DimTime
+UNION ALL
+SELECT 'DimCustomer', COUNT(*), CASE WHEN COUNT(*) = 0 THEN '✓' ELSE '✗' END FROM dw.DimCustomer
+UNION ALL
+SELECT 'DimProduct', COUNT(*), CASE WHEN COUNT(*) = 0 THEN '✓' ELSE '✗' END FROM dw.DimProduct
+UNION ALL
+SELECT 'DimStore', COUNT(*), CASE WHEN COUNT(*) = 0 THEN '✓' ELSE '✗' END FROM dw.DimStore
+UNION ALL
+SELECT 'DimSalesPerson', COUNT(*), CASE WHEN COUNT(*) = 0 THEN '✓' ELSE '✗' END FROM dw.DimSalesPerson
+UNION ALL
+SELECT 'DimPromotion (hors défaut)', COUNT(*)-1, CASE WHEN COUNT(*) = 1 THEN '✓' ELSE '✗' END FROM dw.DimPromotion
+UNION ALL
+SELECT 'DimCampaign (hors défaut)', COUNT(*)-1, CASE WHEN COUNT(*) = 1 THEN '✓' ELSE '✗' END FROM dw.DimCampaign
+UNION ALL
+SELECT 'FactProductSales', COUNT(*), CASE WHEN COUNT(*) = 0 THEN '✓' ELSE '✗' END FROM dw.FactProductSales;
+
+PRINT '';
+PRINT '=================================================================';
+PRINT '✓✓✓ PURGE TERMINÉE AVEC SUCCÈS ✓✓✓';
+PRINT '=================================================================';
+PRINT '';
+PRINT 'Le Data Warehouse est maintenant vide et prêt pour un nouveau chargement.';
+PRINT '';
+PRINT 'Prochaines étapes :';
+PRINT '  1. Exécuter : 02A_LOAD_Dimensions.sql';
+PRINT '  2. Exécuter : 02B_LOAD_Facts_2022_2023.sql';
+PRINT '  3. Exécuter : 02C_LOAD_Facts_2024.sql';
+PRINT '';
+PRINT 'Ou bien, si vous voulez supprimer complètement la base :';
+PRINT '  → Exécuter : DROP DATABASE DW;';
+PRINT '';
+
+GO

@@ -1,0 +1,212 @@
+/*
+====================================================
+ATELIER KPI SSAS - VERSION SIMPLIFIÉE
+FICHIER 2/3 : POPULATION DES DIMENSIONS
+====================================================
+Description: Données minimales pour démo KPI
+Version: Simplifiée et testée
+====================================================
+*/
+
+USE DW_KPI_Simple;
+GO
+
+PRINT '========================================';
+PRINT 'POPULATION DES DIMENSIONS';
+PRINT '========================================';
+PRINT '';
+
+/*
+====================================================
+DIMENSION 1: TEMPS (2022-2024)
+====================================================
+*/
+
+PRINT '1. DimTime - Génération calendrier...';
+
+DECLARE @StartDate DATE = '2022-01-01';
+DECLARE @EndDate DATE = '2024-12-31';
+DECLARE @CurrentDate DATE = @StartDate;
+
+WHILE @CurrentDate <= @EndDate
+BEGIN
+    INSERT INTO DimTime (
+        TimeKey,
+        FullDate,
+        DayOfWeek,
+        DayName,
+        DayOfMonth,
+        Month,
+        MonthName,
+        YearMonth,
+        Quarter,
+        QuarterName,
+        Year,
+        IsWeekend
+    )
+    VALUES (
+        YEAR(@CurrentDate) * 10000 + MONTH(@CurrentDate) * 100 + DAY(@CurrentDate),
+        @CurrentDate,
+        DATEPART(WEEKDAY, @CurrentDate),
+        DATENAME(WEEKDAY, @CurrentDate),
+        DAY(@CurrentDate),
+        MONTH(@CurrentDate),
+        DATENAME(MONTH, @CurrentDate),
+        FORMAT(@CurrentDate, 'yyyy-MM'),
+        DATEPART(QUARTER, @CurrentDate),
+        'Q' + CAST(DATEPART(QUARTER, @CurrentDate) AS VARCHAR),
+        YEAR(@CurrentDate),
+        CASE WHEN DATEPART(WEEKDAY, @CurrentDate) IN (1, 7) THEN 1 ELSE 0 END
+    );
+    
+    SET @CurrentDate = DATEADD(DAY, 1, @CurrentDate);
+END
+
+DECLARE @TimeCount INT;
+SELECT @TimeCount = COUNT(*) FROM DimTime;
+PRINT '  ✓ ' + CAST(@TimeCount AS VARCHAR) + ' jours générés';
+PRINT '';
+
+/*
+====================================================
+DIMENSION 2: PRODUIT (20 produits)
+====================================================
+*/
+
+PRINT '2. DimProduct - Génération catalogue...';
+
+SET IDENTITY_INSERT DimProduct ON;
+
+INSERT INTO DimProduct (ProductKey, ProductCode, ProductName, ProductCategory, UnitCost, StandardPrice, TargetMargin)
+VALUES
+-- Électronique (8 produits) - Marge cible 42%
+(1, 'ELEC-001', 'Laptop Pro 15"', 'Électronique', 450.00, 899.00, 42.00),
+(2, 'ELEC-002', 'Smartphone X1', 'Électronique', 300.00, 599.00, 42.00),
+(3, 'ELEC-003', 'Tablette 10"', 'Électronique', 200.00, 399.00, 42.00),
+(4, 'ELEC-004', 'TV LED 50"', 'Électronique', 350.00, 699.00, 42.00),
+(5, 'ELEC-005', 'Casque Bluetooth', 'Électronique', 40.00, 89.00, 42.00),
+(6, 'ELEC-006', 'Enceinte WiFi', 'Électronique', 60.00, 129.00, 42.00),
+(7, 'ELEC-007', 'Moniteur 27"', 'Électronique', 200.00, 399.00, 42.00),
+(8, 'ELEC-008', 'Souris Gaming', 'Électronique', 30.00, 69.00, 42.00),
+
+-- Électroménager (6 produits) - Marge cible 38%
+(9, 'EMEN-001', 'Réfrigérateur', 'Électroménager', 400.00, 799.00, 38.00),
+(10, 'EMEN-002', 'Lave-linge', 'Électroménager', 300.00, 599.00, 38.00),
+(11, 'EMEN-003', 'Micro-ondes', 'Électroménager', 80.00, 159.00, 38.00),
+(12, 'EMEN-004', 'Machine à Café', 'Électroménager', 100.00, 199.00, 38.00),
+(13, 'EMEN-005', 'Aspirateur Robot', 'Électroménager', 150.00, 299.00, 38.00),
+(14, 'EMEN-006', 'Grille-pain', 'Électroménager', 20.00, 39.00, 38.00),
+
+-- Meubles (6 produits) - Marge cible 48%
+(15, 'MEUB-001', 'Canapé 3 Places', 'Meubles', 300.00, 699.00, 48.00),
+(16, 'MEUB-002', 'Bureau 140cm', 'Meubles', 120.00, 269.00, 48.00),
+(17, 'MEUB-003', 'Chaise Ergonomique', 'Meubles', 80.00, 179.00, 48.00),
+(18, 'MEUB-004', 'Lit 160x200', 'Meubles', 250.00, 549.00, 48.00),
+(19, 'MEUB-005', 'Armoire 3 Portes', 'Meubles', 200.00, 449.00, 48.00),
+(20, 'MEUB-006', 'Table à Manger', 'Meubles', 180.00, 399.00, 48.00);
+
+SET IDENTITY_INSERT DimProduct OFF;
+
+DECLARE @ProductCount INT;
+SELECT @ProductCount = COUNT(*) FROM DimProduct;
+PRINT '  ✓ ' + CAST(@ProductCount AS VARCHAR) + ' produits générés';
+PRINT '';
+
+-- Résumé par catégorie
+SELECT 
+    ProductCategory,
+    COUNT(*) AS NbProduits,
+    AVG(TargetMargin) AS MargeObjectif
+FROM DimProduct
+GROUP BY ProductCategory
+ORDER BY ProductCategory;
+
+PRINT '';
+
+/*
+====================================================
+DIMENSION 3: CLIENT (50 clients)
+====================================================
+*/
+
+PRINT '3. DimCustomer - Génération clients...';
+
+SET IDENTITY_INSERT DimCustomer ON;
+
+DECLARE @i INT = 1;
+WHILE @i <= 50
+BEGIN
+    INSERT INTO DimCustomer (CustomerKey, CustomerCode, CustomerName, CustomerSegment, Region, Country)
+    VALUES (
+        @i,
+        'CUST-' + RIGHT('000' + CAST(@i AS VARCHAR), 3),
+        CASE (@i % 5)
+            WHEN 0 THEN 'Entreprise ' + CAST(@i AS VARCHAR)
+            WHEN 1 THEN 'Société ' + CAST(@i AS VARCHAR)
+            WHEN 2 THEN 'Commerce ' + CAST(@i AS VARCHAR)
+            WHEN 3 THEN 'Boutique ' + CAST(@i AS VARCHAR)
+            ELSE 'Client ' + CAST(@i AS VARCHAR)
+        END,
+        CASE (@i % 3)
+            WHEN 0 THEN 'Retail'
+            WHEN 1 THEN 'Corporate'
+            ELSE 'Small Business'
+        END,
+        CASE (@i % 4)
+            WHEN 0 THEN 'Île-de-France'
+            WHEN 1 THEN 'Rhône-Alpes'
+            WHEN 2 THEN 'PACA'
+            ELSE 'Nouvelle-Aquitaine'
+        END,
+        CASE (@i % 3)
+            WHEN 0 THEN 'France'
+            WHEN 1 THEN 'Belgique'
+            ELSE 'Suisse'
+        END
+    );
+    SET @i = @i + 1;
+END
+
+SET IDENTITY_INSERT DimCustomer OFF;
+
+DECLARE @CustomerCount INT;
+SELECT @CustomerCount = COUNT(*) FROM DimCustomer;
+PRINT '  ✓ ' + CAST(@CustomerCount AS VARCHAR) + ' clients générés';
+PRINT '';
+
+-- Résumé par segment
+SELECT 
+    CustomerSegment,
+    COUNT(*) AS NbClients
+FROM DimCustomer
+GROUP BY CustomerSegment;
+
+PRINT '';
+
+/*
+====================================================
+RÉSUMÉ
+====================================================
+*/
+
+PRINT '';
+PRINT '========================================';
+PRINT 'RÉSUMÉ DES DIMENSIONS';
+PRINT '========================================';
+PRINT '';
+
+SELECT 'DimTime' AS Dimension, COUNT(*) AS Lignes FROM DimTime
+UNION ALL
+SELECT 'DimProduct', COUNT(*) FROM DimProduct
+UNION ALL
+SELECT 'DimCustomer', COUNT(*) FROM DimCustomer;
+
+PRINT '';
+PRINT '========================================';
+PRINT '✓✓✓ DIMENSIONS PRÊTES! ✓✓✓';
+PRINT '========================================';
+PRINT '';
+PRINT 'Prochaine étape:';
+PRINT '  Exécutez: SIMPLE_3_Populate_Facts.sql';
+PRINT '';
+GO

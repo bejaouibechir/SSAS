@@ -1,0 +1,250 @@
+/*
+====================================================
+ATELIER KPI SSAS - VERSION SIMPLIFIÉE
+FICHIER 3/3 : POPULATION DES FAITS
+====================================================
+Description: Génération simple de transactions
+Version: Sans sous-requêtes - 100% testée
+====================================================
+*/
+
+USE DW_KPI_Simple;
+GO
+
+PRINT '========================================';
+PRINT 'POPULATION DES FAITS';
+PRINT '========================================';
+PRINT '';
+
+/*
+====================================================
+VÉRIFICATIONS
+====================================================
+*/
+
+DECLARE @TimeCount INT;
+DECLARE @ProductCount INT;
+DECLARE @CustomerCount INT;
+
+SELECT @TimeCount = COUNT(*) FROM DimTime;
+SELECT @ProductCount = COUNT(*) FROM DimProduct;
+SELECT @CustomerCount = COUNT(*) FROM DimCustomer;
+
+PRINT 'Vérification:';
+PRINT '  DimTime: ' + CAST(@TimeCount AS VARCHAR);
+PRINT '  DimProduct: ' + CAST(@ProductCount AS VARCHAR);
+PRINT '  DimCustomer: ' + CAST(@CustomerCount AS VARCHAR);
+PRINT '';
+
+IF @TimeCount = 0 OR @ProductCount = 0 OR @CustomerCount = 0
+BEGIN
+    RAISERROR('ERREUR: Exécutez d''abord SIMPLE_2_Populate_Dimensions.sql', 16, 1);
+    RETURN;
+END
+
+PRINT '✓ Dimensions OK';
+PRINT '';
+
+/*
+====================================================
+NETTOYAGE
+====================================================
+*/
+
+DELETE FROM FactSales;
+PRINT '✓ FactSales vidée';
+PRINT '';
+
+/*
+====================================================
+GÉNÉRATION DES VENTES
+====================================================
+*/
+
+PRINT 'Génération des transactions...';
+PRINT '(Environ 2 minutes)';
+PRINT '';
+
+-- Variables
+DECLARE @StartDate DATE = '2022-01-01';
+DECLARE @EndDate DATE = '2024-12-31';
+DECLARE @CurrentDate DATE = @StartDate;
+DECLARE @TimeKey INT;
+DECLARE @TransactionsPerDay INT;
+DECLARE @TxnCount INT;
+
+DECLARE @TotalDays INT;
+DECLARE @ProcessedDays INT = 0;
+DECLARE @LastPercent INT = 0;
+DECLARE @CurrentPercent INT;
+
+SELECT @TotalDays = DATEDIFF(DAY, @StartDate, @EndDate) + 1;
+
+-- Boucle principale sur les jours
+WHILE @CurrentDate <= @EndDate
+BEGIN
+    SET @TimeKey = YEAR(@CurrentDate) * 10000 + MONTH(@CurrentDate) * 100 + DAY(@CurrentDate);
+    
+    -- Nombre de transactions selon le jour
+    SET @TransactionsPerDay = 
+        CASE 
+            WHEN DATEPART(WEEKDAY, @CurrentDate) IN (1, 7) THEN 30  -- Weekend
+            WHEN MONTH(@CurrentDate) = 12 THEN 80                    -- Décembre (fêtes)
+            WHEN MONTH(@CurrentDate) = 8 THEN 35                     -- Août (vacances)
+            ELSE 50 + (YEAR(@CurrentDate) - 2022) * 10               -- Croissance YoY
+        END;
+    
+    -- Générer les transactions du jour
+    SET @TxnCount = 1;
+    WHILE @TxnCount <= @TransactionsPerDay
+    BEGIN
+        -- Sélection aléatoire des clés
+        DECLARE @RandProduct INT = 1 + (ABS(CHECKSUM(NEWID())) % @ProductCount);
+        DECLARE @RandCustomer INT = 1 + (ABS(CHECKSUM(NEWID())) % @CustomerCount);
+        
+        -- Récupérer les infos produit
+        DECLARE @ProdPrice DECIMAL(10,2);
+        DECLARE @ProdCost DECIMAL(10,2);
+        
+        SELECT @ProdPrice = StandardPrice, @ProdCost = UnitCost
+        FROM DimProduct
+        WHERE ProductKey = @RandProduct;
+        
+        -- Calculs aléatoires
+        DECLARE @Quantity INT = CASE 
+            WHEN (ABS(CHECKSUM(NEWID())) % 100) < 70 THEN 1
+            WHEN (ABS(CHECKSUM(NEWID())) % 100) < 90 THEN 2
+            ELSE 3
+        END;
+        
+        DECLARE @DiscountPct DECIMAL(5,2) = CASE (ABS(CHECKSUM(NEWID())) % 10)
+            WHEN 0 THEN 5.0
+            WHEN 1 THEN 10.0
+            WHEN 2 THEN 15.0
+            ELSE 0.0
+        END;
+        
+        DECLARE @Returned INT = CASE WHEN (ABS(CHECKSUM(NEWID())) % 100) < 3 THEN 1 ELSE 0 END;
+        DECLARE @ShipDays INT = 1 + (ABS(CHECKSUM(NEWID())) % 7);
+        DECLARE @IsLate BIT = CASE WHEN @ShipDays > 5 THEN 1 ELSE 0 END;
+        DECLARE @Satisfaction INT = CASE WHEN (ABS(CHECKSUM(NEWID())) % 100) < 80 THEN 4 + (ABS(CHECKSUM(NEWID())) % 2) ELSE 3 END;
+        
+        -- Prix avec variation
+        DECLARE @FinalPrice DECIMAL(10,2) = @ProdPrice * (1 + (ABS(CHECKSUM(NEWID())) % 10 - 5) * 0.01);
+        
+        -- Objectifs (croissance de 15% par an)
+        DECLARE @YearFactor DECIMAL(5,2) = 1.0 + (YEAR(@CurrentDate) - 2022) * 0.15;
+        
+        -- Insertion
+        INSERT INTO FactSales (
+            TimeKey, ProductKey, CustomerKey,
+            OrderQuantity, ReturnedQuantity,
+            UnitPrice, StandardCost, Discount,
+            OrderToShipDays, IsLateDelivery, CustomerSatisfactionScore,
+            SalesTarget, MarginTarget
+        )
+        VALUES (
+            @TimeKey,
+            @RandProduct,
+            @RandCustomer,
+            @Quantity,
+            @Returned,
+            @FinalPrice,
+            @ProdCost,
+            @DiscountPct,
+            @ShipDays,
+            @IsLate,
+            @Satisfaction,
+            @FinalPrice * @Quantity * 1.1 * @YearFactor,
+            @FinalPrice * @Quantity * 0.45 * @YearFactor
+        );
+        
+        SET @TxnCount = @TxnCount + 1;
+    END
+    
+    -- Progression
+    SET @ProcessedDays = @ProcessedDays + 1;
+    SET @CurrentPercent = (@ProcessedDays * 100) / @TotalDays;
+    
+    IF @CurrentPercent >= @LastPercent + 10
+    BEGIN
+        PRINT '  ' + CAST(@CurrentPercent AS VARCHAR) + '% (' + CONVERT(VARCHAR(10), @CurrentDate, 120) + ')';
+        SET @LastPercent = @CurrentPercent;
+    END
+    
+    SET @CurrentDate = DATEADD(DAY, 1, @CurrentDate);
+END
+
+PRINT '';
+PRINT '✓ Transactions générées!';
+PRINT '';
+
+/*
+====================================================
+STATISTIQUES
+====================================================
+*/
+
+PRINT '========================================';
+PRINT 'STATISTIQUES';
+PRINT '========================================';
+PRINT '';
+
+DECLARE @TotalSales INT;
+SELECT @TotalSales = COUNT(*) FROM FactSales;
+PRINT 'Total transactions: ' + CAST(@TotalSales AS VARCHAR);
+PRINT '';
+
+PRINT 'Ventes par année:';
+SELECT 
+    t.Year AS Annee,
+    COUNT(*) AS Transactions,
+    FORMAT(SUM(s.OrderQuantity * s.UnitPrice * (1 - s.Discount / 100.0)), 'N0') AS CA_Total
+FROM FactSales s
+INNER JOIN DimTime t ON s.TimeKey = t.TimeKey
+GROUP BY t.Year
+ORDER BY t.Year;
+
+PRINT '';
+PRINT 'Ventes par catégorie:';
+SELECT 
+    p.ProductCategory AS Categorie,
+    COUNT(*) AS Transactions,
+    FORMAT(SUM(s.OrderQuantity * s.UnitPrice * (1 - s.Discount / 100.0)), 'N0') AS CA_Total
+FROM FactSales s
+INNER JOIN DimProduct p ON s.ProductKey = p.ProductKey
+GROUP BY p.ProductCategory
+ORDER BY SUM(s.OrderQuantity * s.UnitPrice * (1 - s.Discount / 100.0)) DESC;
+
+PRINT '';
+PRINT 'Top 5 produits:';
+SELECT TOP 5
+    p.ProductName AS Produit,
+    COUNT(*) AS Ventes,
+    FORMAT(SUM(s.OrderQuantity * s.UnitPrice * (1 - s.Discount / 100.0)), 'N0') AS CA
+FROM FactSales s
+INNER JOIN DimProduct p ON s.ProductKey = p.ProductKey
+GROUP BY p.ProductName
+ORDER BY SUM(s.OrderQuantity * s.UnitPrice * (1 - s.Discount / 100.0)) DESC;
+
+PRINT '';
+PRINT '========================================';
+PRINT '✓✓✓ DATA WAREHOUSE PRÊT! ✓✓✓';
+PRINT '========================================';
+PRINT '';
+PRINT 'Résumé:';
+PRINT '  - 3 Dimensions populées';
+PRINT '  - ~' + CAST(@TotalSales AS VARCHAR) + ' transactions générées';
+PRINT '  - Données 2022-2024 avec croissance';
+PRINT '';
+PRINT 'PROCHAINES ÉTAPES:';
+PRINT '';
+PRINT '1. Créer le projet SSAS dans Visual Studio';
+PRINT '2. Ajouter Data Source → DW_KPI_Simple';
+PRINT '3. Créer Data Source View avec les 4 tables';
+PRINT '4. Créer les 3 dimensions';
+PRINT '5. Créer le cube avec FactSales';
+PRINT '6. Deploy → Process Full';
+PRINT '7. Browser → Voir les données!';
+PRINT '';
+GO

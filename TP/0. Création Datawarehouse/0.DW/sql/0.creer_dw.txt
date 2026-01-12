@@ -1,0 +1,502 @@
+/* =============================================================================
+   01_CREATE_DW_Structure.sql
+   
+   TECHMART ELECTRONICS - DATA WAREHOUSE V2.0
+   Script de création de la structure complète
+   
+   Architecture :
+   - 8 Dimensions : Date, Time, Customer, Product, Store, SalesPerson, 
+                    Promotion, Campaign
+   - 1 Table de faits : FactProductSales avec mesures complètes
+   
+   Nouvelles colonnes mesures dans la table de faits :
+   - Quantity (diversifié 1-5)
+   - UnitPrice
+   - DiscountAmount
+   - TaxAmount
+   - PromotionAmount
+   - CampaignCost
+   - DefectQuantity
+   
+   Durée d'exécution : < 1 minute
+   
+   ============================================================================= */
+
+USE master;
+GO
+
+-- Supprimer la base si elle existe (pour repartir de zéro)
+IF DB_ID('DW') IS NOT NULL
+BEGIN
+    ALTER DATABASE DW SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+    DROP DATABASE DW;
+    PRINT '✓ Ancienne base DW supprimée';
+END
+GO
+
+-- Créer la base de données
+CREATE DATABASE DW;
+PRINT '✓ Base de données DW créée';
+GO
+
+USE DW;
+GO
+
+-- Créer le schéma
+IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'dw')
+BEGIN
+    EXEC('CREATE SCHEMA dw AUTHORIZATION dbo');
+    PRINT '✓ Schéma dw créé';
+END
+ELSE
+BEGIN
+    PRINT '✓ Schéma dw existe déjà';
+END
+GO
+
+PRINT '';
+PRINT '=================================================================';
+PRINT 'CRÉATION DES DIMENSIONS';
+PRINT '=================================================================';
+PRINT '';
+GO
+
+/* =============================================================================
+   DIMENSION 1 : DATE
+   ============================================================================= */
+
+CREATE TABLE dw.DimDate
+(
+    -- Clés
+    DateSK          INT IDENTITY(1,1) NOT NULL,
+    DateBK          DATE NOT NULL,
+    
+    -- Attributs jour
+    DayNumber       TINYINT  NOT NULL,
+    DayName         NVARCHAR(20) NOT NULL,
+    DayNameShort    NVARCHAR(3) NOT NULL,
+    DayOfWeek       TINYINT  NOT NULL,
+    DayOfYear       SMALLINT NOT NULL,
+    
+    -- Attributs semaine
+    WeekOfYear      TINYINT  NOT NULL,
+    WeekOfMonth     TINYINT  NOT NULL,
+    
+    -- Attributs mois
+    MonthNumber     TINYINT  NOT NULL,
+    MonthName       NVARCHAR(20) NOT NULL,
+    MonthNameShort  NVARCHAR(3) NOT NULL,
+    
+    -- Attributs trimestre
+    QuarterNumber   TINYINT  NOT NULL,
+    QuarterName     NVARCHAR(10) NOT NULL,
+    
+    -- Attributs année
+    YearNumber      SMALLINT NOT NULL,
+    
+    -- Attributs spéciaux
+    IsWeekend       BIT NOT NULL,
+    IsHoliday       BIT NOT NULL,
+    HolidayName     NVARCHAR(50) NULL,
+    
+    -- Période fiscale
+    FiscalYear      SMALLINT NULL,
+    FiscalQuarter   TINYINT NULL,
+    
+    CONSTRAINT PK_DimDate PRIMARY KEY CLUSTERED (DateSK),
+    CONSTRAINT UQ_DimDate_DateBK UNIQUE (DateBK)
+);
+
+CREATE INDEX IX_DimDate_DateBK ON dw.DimDate(DateBK);
+CREATE INDEX IX_DimDate_Year ON dw.DimDate(YearNumber);
+CREATE INDEX IX_DimDate_YearMonth ON dw.DimDate(YearNumber, MonthNumber);
+GO
+
+PRINT '✓ DimDate créée';
+GO
+
+/* =============================================================================
+   DIMENSION 2 : TIME
+   ============================================================================= */
+
+CREATE TABLE dw.DimTime
+(
+    -- Clés
+    TimeSK        INT IDENTITY(1,1) NOT NULL,
+    TimeBK        TIME(0) NOT NULL,
+    
+    -- Attributs temps
+    HourNumber    TINYINT NOT NULL,
+    MinuteNumber  TINYINT NOT NULL,
+    SecondNumber  TINYINT NOT NULL,
+    
+    -- Attributs dérivés
+    TimeLabel     NVARCHAR(20) NOT NULL,
+    AMPMIndicator NVARCHAR(2) NOT NULL,
+    DayPeriod     NVARCHAR(20) NOT NULL,
+    
+    CONSTRAINT PK_DimTime PRIMARY KEY CLUSTERED (TimeSK),
+    CONSTRAINT UQ_DimTime_TimeBK UNIQUE (TimeBK)
+);
+
+CREATE INDEX IX_DimTime_TimeBK ON dw.DimTime(TimeBK);
+CREATE INDEX IX_DimTime_Hour ON dw.DimTime(HourNumber);
+GO
+
+PRINT '✓ DimTime créée';
+GO
+
+/* =============================================================================
+   DIMENSION 3 : CUSTOMER
+   ============================================================================= */
+
+CREATE TABLE dw.DimCustomer
+(
+    -- Clés
+    CustomerSK     INT IDENTITY(1,1) NOT NULL,
+    CustomerBK     INT NOT NULL,
+    
+    -- Attributs démographiques
+    CustomerName   NVARCHAR(100) NOT NULL,
+    Email          NVARCHAR(150) NULL,
+    Phone          NVARCHAR(20) NULL,
+    
+    -- Attributs géographiques
+    City           NVARCHAR(80)  NULL,
+    Country        NVARCHAR(80)  NULL,
+    Region         NVARCHAR(80)  NULL,
+    
+    -- Attributs segmentation
+    CustomerType   NVARCHAR(20) NULL,
+    CustomerSegment NVARCHAR(20) NULL,
+    
+    -- SCD Type 2 (prêt pour future évolution)
+    ValidFrom      DATETIME2(0) NOT NULL DEFAULT '1900-01-01',
+    ValidTo        DATETIME2(0) NOT NULL DEFAULT '9999-12-31',
+    IsCurrent      BIT NOT NULL DEFAULT 1,
+    
+    CONSTRAINT PK_DimCustomer PRIMARY KEY CLUSTERED (CustomerSK),
+    CONSTRAINT UQ_DimCustomer_CustomerBK_Valid UNIQUE (CustomerBK, ValidFrom)
+);
+
+CREATE INDEX IX_DimCustomer_CustomerBK ON dw.DimCustomer(CustomerBK);
+CREATE INDEX IX_DimCustomer_Country ON dw.DimCustomer(Country);
+GO
+
+PRINT '✓ DimCustomer créée';
+GO
+
+/* =============================================================================
+   DIMENSION 4 : PRODUCT
+   ============================================================================= */
+
+CREATE TABLE dw.DimProduct
+(
+    -- Clés
+    ProductSK      INT IDENTITY(1,1) NOT NULL,
+    ProductBK      INT NOT NULL,
+    
+    -- Attributs produit
+    ProductName    NVARCHAR(120) NOT NULL,
+    Brand          NVARCHAR(80)  NULL,
+    Category       NVARCHAR(80)  NULL,
+    SubCategory    NVARCHAR(80)  NULL,
+    
+    -- Attributs financiers
+    StandardCost   DECIMAL(18,2) NULL,
+    ListPrice      DECIMAL(18,2) NULL,
+    
+    -- Attributs techniques
+    Color          NVARCHAR(30) NULL,
+    Size           NVARCHAR(20) NULL,
+    Weight         DECIMAL(10,2) NULL,
+    
+    -- Gestion
+    ProductStatus  NVARCHAR(20) NULL,
+    LaunchDate     DATE NULL,
+    
+    CONSTRAINT PK_DimProduct PRIMARY KEY CLUSTERED (ProductSK),
+    CONSTRAINT UQ_DimProduct_ProductBK UNIQUE (ProductBK)
+);
+
+CREATE INDEX IX_DimProduct_ProductBK ON dw.DimProduct(ProductBK);
+CREATE INDEX IX_DimProduct_Category ON dw.DimProduct(Category);
+CREATE INDEX IX_DimProduct_Brand ON dw.DimProduct(Brand);
+GO
+
+PRINT '✓ DimProduct créée';
+GO
+
+/* =============================================================================
+   DIMENSION 5 : STORE
+   ============================================================================= */
+
+CREATE TABLE dw.DimStore
+(
+    -- Clés
+    StoreSK       INT IDENTITY(1,1) NOT NULL,
+    StoreBK       INT NOT NULL,
+    
+    -- Attributs magasin
+    StoreName     NVARCHAR(120) NOT NULL,
+    StoreType     NVARCHAR(30) NULL,
+    
+    -- Géographie
+    City          NVARCHAR(80)  NULL,
+    Country       NVARCHAR(80)  NULL,
+    Region        NVARCHAR(80)  NULL,
+    
+    -- Opérationnel
+    OpeningDate   DATE NULL,
+    StoreSize     INT NULL,
+    ManagerName   NVARCHAR(100) NULL,
+    
+    CONSTRAINT PK_DimStore PRIMARY KEY CLUSTERED (StoreSK),
+    CONSTRAINT UQ_DimStore_StoreBK UNIQUE (StoreBK)
+);
+
+CREATE INDEX IX_DimStore_StoreBK ON dw.DimStore(StoreBK);
+CREATE INDEX IX_DimStore_Country ON dw.DimStore(Country);
+GO
+
+PRINT '✓ DimStore créée';
+GO
+
+/* =============================================================================
+   DIMENSION 6 : SALESPERSON
+   ============================================================================= */
+
+CREATE TABLE dw.DimSalesPerson
+(
+    -- Clés
+    SalesPersonSK     INT IDENTITY(1,1) NOT NULL,
+    SalesPersonBK     INT NOT NULL,
+    
+    -- Attributs personnels
+    SalesPersonName   NVARCHAR(120) NOT NULL,
+    Email             NVARCHAR(150) NULL,
+    Phone             NVARCHAR(20) NULL,
+    
+    -- Professionnel
+    HireDate          DATE NULL,
+    JobTitle          NVARCHAR(50) NULL,
+    Department        NVARCHAR(50) NULL,
+    
+    -- Performance
+    SalesTarget       DECIMAL(18,2) NULL,
+    CommissionRate    DECIMAL(5,4) NULL,
+    
+    CONSTRAINT PK_DimSalesPerson PRIMARY KEY CLUSTERED (SalesPersonSK),
+    CONSTRAINT UQ_DimSalesPerson_SalesPersonBK UNIQUE (SalesPersonBK)
+);
+
+CREATE INDEX IX_DimSalesPerson_SalesPersonBK ON dw.DimSalesPerson(SalesPersonBK);
+GO
+
+PRINT '✓ DimSalesPerson créée';
+GO
+
+/* =============================================================================
+   DIMENSION 7 : PROMOTION (NOUVELLE)
+   ============================================================================= */
+
+CREATE TABLE dw.DimPromotion
+(
+    -- Clés
+    PromotionSK       INT IDENTITY(1,1) NOT NULL,
+    PromotionBK       INT NOT NULL,
+    
+    -- Attributs promotion
+    PromotionName     NVARCHAR(100) NOT NULL,
+    PromotionType     NVARCHAR(50) NULL,
+    DiscountPercent   DECIMAL(5,2) NULL,
+    
+    -- Période validité
+    StartDate         DATE NOT NULL,
+    EndDate           DATE NOT NULL,
+    
+    -- Conditions
+    MinPurchaseAmount DECIMAL(18,2) NULL,
+    MaxDiscountAmount DECIMAL(18,2) NULL,
+    
+    -- Ciblage
+    TargetCategory    NVARCHAR(80) NULL,
+    TargetSegment     NVARCHAR(20) NULL,
+    
+    CONSTRAINT PK_DimPromotion PRIMARY KEY CLUSTERED (PromotionSK),
+    CONSTRAINT UQ_DimPromotion_PromotionBK UNIQUE (PromotionBK)
+);
+
+CREATE INDEX IX_DimPromotion_PromotionBK ON dw.DimPromotion(PromotionBK);
+CREATE INDEX IX_DimPromotion_Type ON dw.DimPromotion(PromotionType);
+GO
+
+-- Enregistrement par défaut (pas de promotion)
+SET IDENTITY_INSERT dw.DimPromotion ON;
+INSERT INTO dw.DimPromotion (PromotionSK, PromotionBK, PromotionName, PromotionType, DiscountPercent, StartDate, EndDate)
+VALUES (-1, -1, 'No Promotion', 'None', 0, '1900-01-01', '9999-12-31');
+SET IDENTITY_INSERT dw.DimPromotion OFF;
+GO
+
+PRINT '✓ DimPromotion créée (avec valeur par défaut)';
+GO
+
+/* =============================================================================
+   DIMENSION 8 : CAMPAIGN (NOUVELLE)
+   ============================================================================= */
+
+CREATE TABLE dw.DimCampaign
+(
+    -- Clés
+    CampaignSK        INT IDENTITY(1,1) NOT NULL,
+    CampaignBK        INT NOT NULL,
+    
+    -- Attributs campagne
+    CampaignName      NVARCHAR(100) NOT NULL,
+    CampaignType      NVARCHAR(50) NULL,
+    Channel           NVARCHAR(50) NULL,
+    
+    -- Période
+    LaunchDate        DATE NOT NULL,
+    EndDate           DATE NULL,
+    
+    -- Budget
+    BudgetAmount      DECIMAL(18,2) NULL,
+    TargetAudience    NVARCHAR(100) NULL,
+    
+    CONSTRAINT PK_DimCampaign PRIMARY KEY CLUSTERED (CampaignSK),
+    CONSTRAINT UQ_DimCampaign_CampaignBK UNIQUE (CampaignBK)
+);
+
+CREATE INDEX IX_DimCampaign_CampaignBK ON dw.DimCampaign(CampaignBK);
+CREATE INDEX IX_DimCampaign_Type ON dw.DimCampaign(CampaignType);
+GO
+
+-- Enregistrement par défaut (pas de campagne)
+SET IDENTITY_INSERT dw.DimCampaign ON;
+INSERT INTO dw.DimCampaign (CampaignSK, CampaignBK, CampaignName, CampaignType, LaunchDate, BudgetAmount)
+VALUES (-1, -1, 'No Campaign', 'None', '1900-01-01', 0);
+SET IDENTITY_INSERT dw.DimCampaign OFF;
+GO
+
+PRINT '✓ DimCampaign créée (avec valeur par défaut)';
+GO
+
+PRINT '';
+PRINT '=================================================================';
+PRINT 'CRÉATION DE LA TABLE DE FAITS';
+PRINT '=================================================================';
+PRINT '';
+GO
+
+/* =============================================================================
+   TABLE DE FAITS : PRODUCT SALES
+   ============================================================================= */
+
+CREATE TABLE dw.FactProductSales
+(
+    -- Clés dimensions
+    DateSK            INT NOT NULL,
+    TimeSK            INT NOT NULL,
+    StoreSK           INT NOT NULL,
+    CustomerSK        INT NOT NULL,
+    ProductSK         INT NOT NULL,
+    SalesPersonSK     INT NOT NULL,
+    PromotionSK       INT NOT NULL DEFAULT -1,
+    CampaignSK        INT NOT NULL DEFAULT -1,
+    
+    -- Dimension dégénérée
+    SalesInvoiceNumber NVARCHAR(30) NOT NULL,
+    InvoiceLineNumber  SMALLINT NOT NULL,
+    
+    -- ★ MESURES (TOUTES LES COLONNES DEMANDÉES) ★
+    Quantity           INT NOT NULL,              -- Diversifié 1-5
+    UnitPrice          DECIMAL(18,2) NOT NULL,
+    DiscountAmount     DECIMAL(18,2) NOT NULL DEFAULT 0,
+    TaxAmount          DECIMAL(18,2) NOT NULL DEFAULT 0,
+    PromotionAmount    DECIMAL(18,2) NOT NULL DEFAULT 0,
+    CampaignCost       DECIMAL(18,2) NOT NULL DEFAULT 0,
+    DefectQuantity     INT NOT NULL DEFAULT 0,
+    
+    -- Colonnes calculées (PERSISTED pour performance)
+    SubTotal           AS (CONVERT(DECIMAL(18,2), Quantity * UnitPrice)) PERSISTED,
+    TotalAmount        AS (CONVERT(DECIMAL(18,2), 
+                            (Quantity * UnitPrice) - DiscountAmount - PromotionAmount + TaxAmount)) PERSISTED,
+    NetProfit          AS (CONVERT(DECIMAL(18,2), 
+                            (Quantity * UnitPrice) - DiscountAmount - PromotionAmount + TaxAmount - CampaignCost)) PERSISTED,
+    
+    -- Méta-données ETL
+    ETL_InsertedDate   DATETIME2(0) NOT NULL DEFAULT GETDATE(),
+    ETL_SourceSystem   NVARCHAR(50) NULL DEFAULT 'POS_System'
+);
+
+-- Clé primaire
+ALTER TABLE dw.FactProductSales
+    ADD CONSTRAINT PK_FactProductSales
+    PRIMARY KEY CLUSTERED (SalesInvoiceNumber, InvoiceLineNumber, DateSK);
+
+-- Foreign Keys
+ALTER TABLE dw.FactProductSales ADD CONSTRAINT FK_FactProductSales_DimDate
+    FOREIGN KEY (DateSK) REFERENCES dw.DimDate(DateSK);
+
+ALTER TABLE dw.FactProductSales ADD CONSTRAINT FK_FactProductSales_DimTime
+    FOREIGN KEY (TimeSK) REFERENCES dw.DimTime(TimeSK);
+
+ALTER TABLE dw.FactProductSales ADD CONSTRAINT FK_FactProductSales_DimStore
+    FOREIGN KEY (StoreSK) REFERENCES dw.DimStore(StoreSK);
+
+ALTER TABLE dw.FactProductSales ADD CONSTRAINT FK_FactProductSales_DimCustomer
+    FOREIGN KEY (CustomerSK) REFERENCES dw.DimCustomer(CustomerSK);
+
+ALTER TABLE dw.FactProductSales ADD CONSTRAINT FK_FactProductSales_DimProduct
+    FOREIGN KEY (ProductSK) REFERENCES dw.DimProduct(ProductSK);
+
+ALTER TABLE dw.FactProductSales ADD CONSTRAINT FK_FactProductSales_DimSalesPerson
+    FOREIGN KEY (SalesPersonSK) REFERENCES dw.DimSalesPerson(SalesPersonSK);
+
+ALTER TABLE dw.FactProductSales ADD CONSTRAINT FK_FactProductSales_DimPromotion
+    FOREIGN KEY (PromotionSK) REFERENCES dw.DimPromotion(PromotionSK);
+
+ALTER TABLE dw.FactProductSales ADD CONSTRAINT FK_FactProductSales_DimCampaign
+    FOREIGN KEY (CampaignSK) REFERENCES dw.DimCampaign(CampaignSK);
+
+-- Index sur FK
+CREATE INDEX IX_FactProductSales_DateSK ON dw.FactProductSales(DateSK);
+CREATE INDEX IX_FactProductSales_TimeSK ON dw.FactProductSales(TimeSK);
+CREATE INDEX IX_FactProductSales_StoreSK ON dw.FactProductSales(StoreSK);
+CREATE INDEX IX_FactProductSales_CustomerSK ON dw.FactProductSales(CustomerSK);
+CREATE INDEX IX_FactProductSales_ProductSK ON dw.FactProductSales(ProductSK);
+CREATE INDEX IX_FactProductSales_SalesPersonSK ON dw.FactProductSales(SalesPersonSK);
+CREATE INDEX IX_FactProductSales_PromotionSK ON dw.FactProductSales(PromotionSK);
+CREATE INDEX IX_FactProductSales_CampaignSK ON dw.FactProductSales(CampaignSK);
+
+-- Index complémentaires
+CREATE INDEX IX_FactProductSales_Invoice ON dw.FactProductSales(SalesInvoiceNumber);
+CREATE INDEX IX_FactProductSales_Date_Store ON dw.FactProductSales(DateSK, StoreSK);
+
+PRINT '✓ FactProductSales créée avec 7 mesures + 3 colonnes calculées';
+GO
+
+PRINT '';
+PRINT '=================================================================';
+PRINT '★★★ DATA WAREHOUSE CRÉÉ AVEC SUCCÈS ★★★';
+PRINT '=================================================================';
+PRINT '';
+PRINT 'Résumé :';
+PRINT '  ✓ 8 Dimensions créées';
+PRINT '  ✓ 1 Table de faits créée';
+PRINT '  ✓ Toutes les contraintes et index en place';
+PRINT '';
+PRINT 'Nouvelles colonnes dans FactProductSales :';
+PRINT '  • Quantity (diversifié)';
+PRINT '  • UnitPrice';
+PRINT '  • DiscountAmount';
+PRINT '  • TaxAmount';
+PRINT '  • PromotionAmount';
+PRINT '  • CampaignCost';
+PRINT '  • DefectQuantity';
+PRINT '';
+PRINT 'Prochaine étape :';
+PRINT '  → Exécuter : 02_LOAD_DW_Data_2022_2024.sql';
+PRINT '';
+GO

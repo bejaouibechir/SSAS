@@ -1,0 +1,358 @@
+/*
+====================================================
+DATA MINING SSAS - FICHIER 1/7
+CRÉATION DATA WAREHOUSE - VENTES CHAUSSURES
+====================================================
+Description: Base de données optimisée pour Data Mining
+Focus: Features RFMT + Comportementales
+Objectif: Prédiction Churn et analyses avancées
+====================================================
+*/
+
+USE master;
+GO
+
+-- Suppression base existante
+IF EXISTS (SELECT name FROM sys.databases WHERE name = 'DW_Shoes_Mining')
+BEGIN
+    PRINT 'Suppression base existante...';
+    ALTER DATABASE DW_Shoes_Mining SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+    DROP DATABASE DW_Shoes_Mining;
+    PRINT '✓ Base supprimée';
+END
+GO
+
+-- Création nouvelle base
+PRINT 'Création DW_Shoes_Mining...';
+CREATE DATABASE DW_Shoes_Mining;
+GO
+
+USE DW_Shoes_Mining;
+GO
+
+PRINT '✓ Base créée';
+PRINT '';
+
+/*
+====================================================
+DIMENSION TEMPS
+====================================================
+*/
+
+PRINT 'Création DimTime...';
+
+CREATE TABLE DimTime (
+    TimeKey INT PRIMARY KEY,
+    FullDate DATE NOT NULL,
+    Year INT NOT NULL,
+    Quarter INT NOT NULL,
+    Month INT NOT NULL,
+    MonthName NVARCHAR(20) NOT NULL,
+    Season NVARCHAR(20) NOT NULL,  -- Important pour chaussures!
+    IsWeekend BIT NOT NULL,
+    IsHoliday BIT NOT NULL
+);
+
+CREATE INDEX IX_DimTime_Year ON DimTime(Year);
+CREATE INDEX IX_DimTime_Season ON DimTime(Season);
+
+PRINT '  ✓ DimTime créée';
+
+/*
+====================================================
+DIMENSION PRODUIT (Chaussures)
+====================================================
+*/
+
+PRINT 'Création DimProduct...';
+
+CREATE TABLE DimProduct (
+    ProductKey INT IDENTITY(1,1) PRIMARY KEY,
+    ProductCode NVARCHAR(20) NOT NULL UNIQUE,
+    ProductName NVARCHAR(100) NOT NULL,
+    Brand NVARCHAR(50) NOT NULL,
+    Category NVARCHAR(50) NOT NULL,           -- Sport, Casual, Formal, Boots
+    Gender NVARCHAR(20) NOT NULL,             -- Men, Women, Unisex, Kids
+    PriceRange NVARCHAR(20) NOT NULL,         -- Budget, Mid, Premium, Luxury
+    UnitCost DECIMAL(10,2) NOT NULL,
+    RetailPrice DECIMAL(10,2) NOT NULL,
+    Color NVARCHAR(30) NOT NULL,
+    Material NVARCHAR(30) NOT NULL,           -- Leather, Textile, Synthetic
+    IsNewCollection BIT NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IX_Product_Category ON DimProduct(Category);
+CREATE INDEX IX_Product_Brand ON DimProduct(Brand);
+CREATE INDEX IX_Product_PriceRange ON DimProduct(PriceRange);
+
+PRINT '  ✓ DimProduct créée';
+
+/*
+====================================================
+DIMENSION CLIENT (Avec Features RFMT!)
+====================================================
+*/
+
+PRINT 'Création DimCustomer avec features RFMT...';
+
+CREATE TABLE DimCustomer (
+    CustomerKey INT IDENTITY(1,1) PRIMARY KEY,
+    CustomerCode NVARCHAR(20) NOT NULL UNIQUE,
+    CustomerName NVARCHAR(100) NOT NULL,
+    
+    -- Démographiques
+    Age INT NOT NULL,
+    AgeGroup NVARCHAR(20) NOT NULL,           -- 18-25, 26-35, 36-45, 46-60, 60+
+    Gender NVARCHAR(10) NOT NULL,
+    Income DECIMAL(10,2) NOT NULL,
+    IncomeGroup NVARCHAR(20) NOT NULL,        -- Low, Medium, High, VeryHigh
+    
+    -- Géographiques
+    City NVARCHAR(50) NOT NULL,
+    Region NVARCHAR(50) NOT NULL,
+    Country NVARCHAR(50) NOT NULL,
+    
+    -- Dates clés
+    FirstPurchaseDate DATE NOT NULL,
+    LastPurchaseDate DATE NOT NULL,
+    
+    -- ====== FEATURES RFMT ======
+    -- R = Recency (Fraîcheur)
+    DaysSinceLastPurchase INT NOT NULL,       -- Feature mining #1
+    RecencyScore INT NOT NULL,                -- 1-5 (5 = très récent)
+    
+    -- F = Frequency (Fréquence)
+    TotalOrders INT NOT NULL,                 -- Feature mining #2
+    OrdersLast90Days INT NOT NULL,            -- Feature mining #3
+    OrdersLast180Days INT NOT NULL,
+    FrequencyScore INT NOT NULL,              -- 1-5 (5 = très fréquent)
+    
+    -- M = Monetary (Valeur)
+    TotalSpent DECIMAL(12,2) NOT NULL,        -- Feature mining #4
+    AverageOrderValue DECIMAL(10,2) NOT NULL, -- Feature mining #5
+    MaxOrderValue DECIMAL(10,2) NOT NULL,
+    MonetaryScore INT NOT NULL,               -- 1-5 (5 = gros dépenseur)
+    
+    -- T = Tenure (Ancienneté)
+    DaysSinceFirstPurchase INT NOT NULL,      -- Feature mining #6
+    TenureMonths INT NOT NULL,
+    TenureScore INT NOT NULL,                 -- 1-5 (5 = client ancien)
+    
+    -- ====== FEATURES COMPORTEMENTALES ======
+    -- Tendances
+    PurchaseTrend NVARCHAR(20) NOT NULL,      -- Increasing, Stable, Decreasing
+    AvgDaysBetweenOrders INT NOT NULL,        -- Feature mining #7
+    
+    -- Préférences
+    FavoriteCategory NVARCHAR(50) NOT NULL,
+    FavoriteBrand NVARCHAR(50) NOT NULL,
+    PreferredPriceRange NVARCHAR(20) NOT NULL,
+    
+    -- Diversité
+    UniqueBrandsPurchased INT NOT NULL,       -- Feature mining #8
+    UniqueCategoriesPurchased INT NOT NULL,   -- Feature mining #9
+    
+    -- Comportement achat
+    PercentDiscountPurchases DECIMAL(5,2),    -- % achats en promo
+    HasReturnedItems BIT NOT NULL,
+    ReturnRate DECIMAL(5,2) NOT NULL,
+    
+    -- Saisonnalité
+    PurchasesInSummer INT NOT NULL,
+    PurchasesInWinter INT NOT NULL,
+    PurchasesInSpring INT NOT NULL,
+    PurchasesInFall INT NOT NULL,
+    
+    -- ====== LABELS POUR MINING ======
+    -- Churn
+    HasChurned BIT NOT NULL,                  -- LABEL principal! (1 = churné)
+    ChurnRiskCategory NVARCHAR(20) NOT NULL,  -- High, Medium, Low
+    
+    -- Segmentation
+    CustomerSegment NVARCHAR(30) NOT NULL,    -- VIP, Regular, Occasional, AtRisk
+    LifetimeValueCategory NVARCHAR(20) NOT NULL, -- High, Medium, Low
+    
+    -- Prédictions (à remplir par mining)
+    ChurnScore DECIMAL(5,4) NULL,             -- Sera rempli par modèle
+    ChurnPredictionDate DATETIME NULL,
+    PredictedNextPurchaseDate DATE NULL,
+    PredictedCLV DECIMAL(12,2) NULL           -- Customer Lifetime Value prédit
+);
+
+-- Index pour performance
+CREATE INDEX IX_Customer_HasChurned ON DimCustomer(HasChurned);
+CREATE INDEX IX_Customer_Segment ON DimCustomer(CustomerSegment);
+CREATE INDEX IX_Customer_RecencyScore ON DimCustomer(RecencyScore);
+CREATE INDEX IX_Customer_ChurnRisk ON DimCustomer(ChurnRiskCategory);
+
+PRINT '  ✓ DimCustomer créée avec 30+ features!';
+
+/*
+====================================================
+FAIT DES VENTES
+====================================================
+*/
+
+PRINT 'Création FactSales...';
+
+CREATE TABLE FactSales (
+    SalesKey BIGINT IDENTITY(1,1) PRIMARY KEY,
+    TimeKey INT NOT NULL,
+    ProductKey INT NOT NULL,
+    CustomerKey INT NOT NULL,
+    
+    -- Transaction
+    OrderQuantity INT NOT NULL,
+    UnitPrice DECIMAL(10,2) NOT NULL,
+    DiscountPercent DECIMAL(5,2) NOT NULL DEFAULT 0,
+    
+    -- Colonnes calculées
+    GrossAmount AS (OrderQuantity * UnitPrice),
+    DiscountAmount AS (OrderQuantity * UnitPrice * DiscountPercent / 100),
+    NetAmount AS (OrderQuantity * UnitPrice * (1 - DiscountPercent / 100)),
+    
+    -- Comportement
+    IsFirstPurchase BIT NOT NULL DEFAULT 0,
+    WasReturned BIT NOT NULL DEFAULT 0,
+    DaysToShip INT NOT NULL,
+    
+    -- Clés étrangères
+    CONSTRAINT FK_Sales_Time FOREIGN KEY (TimeKey) REFERENCES DimTime(TimeKey),
+    CONSTRAINT FK_Sales_Product FOREIGN KEY (ProductKey) REFERENCES DimProduct(ProductKey),
+    CONSTRAINT FK_Sales_Customer FOREIGN KEY (CustomerKey) REFERENCES DimCustomer(CustomerKey)
+);
+
+CREATE INDEX IX_Sales_TimeKey ON FactSales(TimeKey);
+CREATE INDEX IX_Sales_ProductKey ON FactSales(ProductKey);
+CREATE INDEX IX_Sales_CustomerKey ON FactSales(CustomerKey);
+CREATE INDEX IX_Sales_IsFirstPurchase ON FactSales(IsFirstPurchase);
+
+PRINT '  ✓ FactSales créée';
+PRINT '';
+
+/*
+====================================================
+VUES POUR FEATURE ENGINEERING
+====================================================
+*/
+
+PRINT 'Création vues analytiques...';
+
+-- Vue: Statistiques client en temps réel
+CREATE VIEW vw_CustomerAnalytics AS
+SELECT 
+    c.CustomerKey,
+    c.CustomerCode,
+    c.CustomerName,
+    
+    -- RFMT Scores
+    c.RecencyScore,
+    c.FrequencyScore,
+    c.MonetaryScore,
+    c.TenureScore,
+    
+    -- RFM Composite
+    (c.RecencyScore * 100 + c.FrequencyScore * 10 + c.MonetaryScore) AS RFM_Score,
+    
+    -- Labels
+    c.HasChurned,
+    c.ChurnRiskCategory,
+    c.CustomerSegment,
+    
+    -- Comportement récent
+    c.OrdersLast90Days,
+    c.DaysSinceLastPurchase,
+    c.AvgDaysBetweenOrders,
+    
+    -- Valeur
+    c.TotalSpent,
+    c.AverageOrderValue,
+    
+    -- Prédictions
+    c.ChurnScore,
+    c.PredictedNextPurchaseDate
+FROM DimCustomer c;
+
+PRINT '  ✓ vw_CustomerAnalytics créée';
+
+-- Vue: Analyse produits
+CREATE VIEW vw_ProductPerformance AS
+SELECT 
+    p.ProductKey,
+    p.ProductName,
+    p.Brand,
+    p.Category,
+    p.PriceRange,
+    COUNT(DISTINCT s.CustomerKey) AS UniqueCustomers,
+    COUNT(*) AS TotalSales,
+    SUM(s.OrderQuantity) AS TotalQuantity,
+    SUM(s.NetAmount) AS TotalRevenue,
+    AVG(s.NetAmount) AS AvgOrderValue,
+    SUM(CASE WHEN s.WasReturned = 1 THEN 1 ELSE 0 END) AS Returns,
+    CAST(SUM(CASE WHEN s.WasReturned = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*) AS DECIMAL(5,2)) AS ReturnRate
+FROM DimProduct p
+LEFT JOIN FactSales s ON p.ProductKey = s.ProductKey
+GROUP BY 
+    p.ProductKey, p.ProductName, p.Brand, p.Category, p.PriceRange;
+
+PRINT '  ✓ vw_ProductPerformance créée';
+
+-- Vue: Market Basket Analysis
+CREATE VIEW vw_MarketBasket AS
+SELECT 
+    s1.CustomerKey,
+    s1.ProductKey AS Product1,
+    s2.ProductKey AS Product2,
+    COUNT(*) AS CoOccurrence
+FROM FactSales s1
+INNER JOIN FactSales s2 
+    ON s1.CustomerKey = s2.CustomerKey 
+    AND s1.TimeKey = s2.TimeKey
+    AND s1.ProductKey < s2.ProductKey
+GROUP BY s1.CustomerKey, s1.ProductKey, s2.ProductKey
+HAVING COUNT(*) > 1;
+
+PRINT '  ✓ vw_MarketBasket créée';
+
+PRINT '';
+
+/*
+====================================================
+RÉSUMÉ
+====================================================
+*/
+
+PRINT '';
+PRINT '========================================';
+PRINT 'STRUCTURE DATA WAREHOUSE';
+PRINT '========================================';
+PRINT '';
+
+SELECT 
+    TABLE_NAME AS Objet,
+    CASE 
+        WHEN TABLE_NAME LIKE 'Dim%' THEN 'Dimension'
+        WHEN TABLE_NAME LIKE 'Fact%' THEN 'Fait'
+        WHEN TABLE_NAME LIKE 'vw_%' THEN 'Vue Analytique'
+    END AS Type
+FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_TYPE = 'BASE TABLE'
+   OR TABLE_TYPE = 'VIEW'
+ORDER BY Type, TABLE_NAME;
+
+PRINT '';
+PRINT '========================================';
+PRINT '✓✓✓ DATA WAREHOUSE CRÉÉ! ✓✓✓';
+PRINT '========================================';
+PRINT '';
+PRINT 'Features clés pour Data Mining:';
+PRINT '  - RFMT (Recency, Frequency, Monetary, Tenure)';
+PRINT '  - 30+ features comportementales';
+PRINT '  - Labels: HasChurned, CustomerSegment, ChurnRisk';
+PRINT '  - Vues analytiques prêtes';
+PRINT '';
+PRINT 'Prochaine étape:';
+PRINT '  Exécutez: MINING_2_Populate_DW.sql';
+PRINT '  (Population avec données réalistes)';
+PRINT '';
+GO

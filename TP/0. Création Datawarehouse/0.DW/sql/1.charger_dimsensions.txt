@@ -1,0 +1,463 @@
+/* =============================================================================
+   02A_LOAD_Dimensions.sql
+   
+   TECHMART ELECTRONICS - CHARGEMENT DES 8 DIMENSIONS
+   
+   Dimensions chargées :
+   1. DimDate : 1096 jours (2022-2024)
+   2. DimTime : 1440 minutes
+   3. DimCustomer : 500 clients
+   4. DimProduct : 50 produits
+   5. DimStore : 5 magasins
+   6. DimSalesPerson : 15 vendeurs
+   7. DimPromotion : 20 promotions
+   8. DimCampaign : 12 campagnes
+   
+   Durée estimée : 2-3 minutes
+   
+   ============================================================================= */
+
+USE DW;
+GO
+
+SET NOCOUNT ON;
+GO
+
+PRINT '=================================================================';
+PRINT 'CHARGEMENT DES DIMENSIONS - TECHMART';
+PRINT '=================================================================';
+PRINT '';
+
+/* =============================================================================
+   1. DIM_DATE (2022-2024)
+   ============================================================================= */
+
+PRINT '1. DimDate (2022-2024)...';
+
+DECLARE @StartDate DATE = '2022-01-01';
+DECLARE @EndDate DATE = '2024-12-31';
+DECLARE @CurrentDate DATE = @StartDate;
+
+WHILE @CurrentDate <= @EndDate
+BEGIN
+    DECLARE @Y INT = YEAR(@CurrentDate);
+    DECLARE @M INT = MONTH(@CurrentDate);
+    DECLARE @D INT = DAY(@CurrentDate);
+    DECLARE @DOW INT = DATEPART(WEEKDAY, @CurrentDate);
+    
+    DECLARE @IsHol BIT = 0;
+    DECLARE @HolName NVARCHAR(50) = NULL;
+    
+    IF (@M = 1 AND @D = 1) BEGIN SET @IsHol = 1; SET @HolName = 'New Year'; END
+    ELSE IF (@M = 12 AND @D = 25) BEGIN SET @IsHol = 1; SET @HolName = 'Christmas'; END
+    ELSE IF (@M = 12 AND @D = 26) BEGIN SET @IsHol = 1; SET @HolName = 'Boxing Day'; END
+    
+    INSERT INTO dw.DimDate (
+        DateBK, DayNumber, DayName, DayNameShort, DayOfWeek, DayOfYear,
+        WeekOfYear, WeekOfMonth,
+        MonthNumber, MonthName, MonthNameShort,
+        QuarterNumber, QuarterName,
+        YearNumber,
+        IsWeekend, IsHoliday, HolidayName,
+        FiscalYear, FiscalQuarter
+    )
+    VALUES (
+        @CurrentDate,
+        @D,
+        DATENAME(WEEKDAY, @CurrentDate),
+        LEFT(DATENAME(WEEKDAY, @CurrentDate), 3),
+        @DOW,
+        DATEPART(DAYOFYEAR, @CurrentDate),
+        DATEPART(WEEK, @CurrentDate),
+        DATEDIFF(WEEK, DATEADD(MONTH, DATEDIFF(MONTH, 0, @CurrentDate), 0), @CurrentDate) + 1,
+        @M,
+        DATENAME(MONTH, @CurrentDate),
+        LEFT(DATENAME(MONTH, @CurrentDate), 3),
+        DATEPART(QUARTER, @CurrentDate),
+        'Q' + CAST(DATEPART(QUARTER, @CurrentDate) AS VARCHAR),
+        @Y,
+        CASE WHEN @DOW IN (1, 7) THEN 1 ELSE 0 END,
+        @IsHol,
+        @HolName,
+        @Y,
+        DATEPART(QUARTER, @CurrentDate)
+    );
+    
+    SET @CurrentDate = DATEADD(DAY, 1, @CurrentDate);
+END;
+
+DECLARE @DateCount INT;
+SELECT @DateCount = COUNT(*) FROM dw.DimDate;
+PRINT '   ✓ ' + CAST(@DateCount AS VARCHAR) + ' dates chargées';
+PRINT '';
+
+/* =============================================================================
+   2. DIM_TIME
+   ============================================================================= */
+
+PRINT '2. DimTime (par minute)...';
+
+DECLARE @Hour INT = 0;
+DECLARE @Minute INT = 0;
+
+WHILE @Hour <= 23
+BEGIN
+    SET @Minute = 0;
+    WHILE @Minute <= 59
+    BEGIN
+        DECLARE @TimeValue TIME(0) = CAST(
+            RIGHT('0' + CAST(@Hour AS VARCHAR), 2) + ':' +
+            RIGHT('0' + CAST(@Minute AS VARCHAR), 2) + ':00'
+            AS TIME(0)
+        );
+        
+        INSERT INTO dw.DimTime (
+            TimeBK, HourNumber, MinuteNumber, SecondNumber,
+            TimeLabel, AMPMIndicator, DayPeriod
+        )
+        VALUES (
+            @TimeValue,
+            @Hour,
+            @Minute,
+            0,
+            CONVERT(VARCHAR(8), @TimeValue, 108),
+            CASE WHEN @Hour < 12 THEN 'AM' ELSE 'PM' END,
+            CASE 
+                WHEN @Hour >= 6 AND @Hour < 12 THEN 'Morning'
+                WHEN @Hour >= 12 AND @Hour < 18 THEN 'Afternoon'
+                WHEN @Hour >= 18 AND @Hour < 22 THEN 'Evening'
+                ELSE 'Night'
+            END
+        );
+        
+        SET @Minute = @Minute + 1;
+    END;
+    SET @Hour = @Hour + 1;
+END;
+
+DECLARE @TimeCount INT;
+SELECT @TimeCount = COUNT(*) FROM dw.DimTime;
+PRINT '   ✓ ' + CAST(@TimeCount AS VARCHAR) + ' heures chargées';
+PRINT '';
+
+/* =============================================================================
+   3. DIM_CUSTOMER (500 clients)
+   ============================================================================= */
+
+PRINT '3. DimCustomer (500 clients)...';
+
+DECLARE @CustID INT = 1;
+DECLARE @Country NVARCHAR(80);
+DECLARE @City NVARCHAR(80);
+DECLARE @Region NVARCHAR(80);
+DECLARE @CustType NVARCHAR(20);
+DECLARE @CustSegment NVARCHAR(20);
+
+WHILE @CustID <= 500
+BEGIN
+    -- Déterminer le pays et la ville selon l'ID
+    IF @CustID <= 200
+    BEGIN
+        SET @Country = 'Tunisia';
+        SET @City = CASE WHEN @CustID % 3 = 0 THEN 'Tunis' 
+                         WHEN @CustID % 3 = 1 THEN 'Sfax' 
+                         ELSE 'Sousse' END;
+        SET @Region = 'North Africa';
+    END
+    ELSE IF @CustID <= 350
+    BEGIN
+        SET @Country = 'France';
+        SET @City = CASE WHEN @CustID % 3 = 0 THEN 'Paris'
+                         WHEN @CustID % 3 = 1 THEN 'Lyon'
+                         ELSE 'Marseille' END;
+        SET @Region = 'Western Europe';
+    END
+    ELSE IF @CustID <= 450
+    BEGIN
+        SET @Country = 'Germany';
+        SET @City = CASE WHEN @CustID % 3 = 0 THEN 'Berlin'
+                         WHEN @CustID % 3 = 1 THEN 'Munich'
+                         ELSE 'Frankfurt' END;
+        SET @Region = 'Central Europe';
+    END
+    ELSE
+    BEGIN
+        SET @Country = 'Morocco';
+        SET @City = CASE WHEN @CustID % 3 = 0 THEN 'Casablanca'
+                         WHEN @CustID % 3 = 1 THEN 'Rabat'
+                         ELSE 'Marrakech' END;
+        SET @Region = 'North Africa';
+    END;
+    
+    -- Type et segment
+    SET @CustType = CASE WHEN @CustID % 5 = 0 THEN 'Business' ELSE 'Individual' END;
+    SET @CustSegment = CASE WHEN @CustID % 10 = 0 THEN 'Premium'
+                            WHEN @CustID % 3 = 0 THEN 'Standard'
+                            ELSE 'Basic' END;
+    
+    INSERT INTO dw.DimCustomer (
+        CustomerBK, CustomerName, Email, Phone,
+        City, Country, Region,
+        CustomerType, CustomerSegment,
+        ValidFrom, ValidTo, IsCurrent
+    )
+    VALUES (
+        @CustID,
+        'Customer ' + CAST(@CustID AS VARCHAR),
+        'customer' + CAST(@CustID AS VARCHAR) + '@email.com',
+        '+' + CAST(1000000 + @CustID AS VARCHAR),
+        @City,
+        @Country,
+        @Region,
+        @CustType,
+        @CustSegment,
+        '1900-01-01',
+        '9999-12-31',
+        1
+    );
+    
+    SET @CustID = @CustID + 1;
+END;
+
+DECLARE @CustomerCount INT;
+SELECT @CustomerCount = COUNT(*) FROM dw.DimCustomer;
+PRINT '   ✓ ' + CAST(@CustomerCount AS VARCHAR) + ' clients chargés';
+PRINT '';
+
+/* =============================================================================
+   4. DIM_PRODUCT (50 produits)
+   ============================================================================= */
+
+PRINT '4. DimProduct (50 produits)...';
+
+-- Smartphones (15 produits : 1001-1015)
+INSERT INTO dw.DimProduct (ProductBK, ProductName, Brand, Category, SubCategory, StandardCost, ListPrice, Color, Size, Weight, ProductStatus, LaunchDate) VALUES
+(1001, 'iPhone 15 Pro Max 256GB', 'Apple', 'Smartphone', 'Premium Phone', 900, 1299, 'Titanium', 'Large', 0.22, 'Active', '2023-09-15'),
+(1002, 'iPhone 15 Pro 128GB', 'Apple', 'Smartphone', 'Premium Phone', 800, 1099, 'Black', 'Medium', 0.20, 'Active', '2023-09-15'),
+(1003, 'iPhone 14 128GB', 'Apple', 'Smartphone', 'Premium Phone', 650, 899, 'Blue', 'Medium', 0.19, 'Active', '2022-09-10'),
+(1004, 'Samsung Galaxy S24 Ultra', 'Samsung', 'Smartphone', 'Premium Phone', 850, 1199, 'Black', 'Large', 0.23, 'Active', '2024-01-20'),
+(1005, 'Samsung Galaxy S24', 'Samsung', 'Smartphone', 'Premium Phone', 700, 999, 'Violet', 'Medium', 0.17, 'Active', '2024-01-20'),
+(1006, 'Samsung Galaxy S23 FE', 'Samsung', 'Smartphone', 'Mid-range Phone', 500, 699, 'Mint', 'Medium', 0.21, 'Active', '2023-10-05'),
+(1007, 'Google Pixel 8 Pro', 'Google', 'Smartphone', 'Premium Phone', 700, 999, 'Bay', 'Large', 0.21, 'Active', '2023-10-12'),
+(1008, 'Google Pixel 8', 'Google', 'Smartphone', 'Mid-range Phone', 550, 799, 'Obsidian', 'Medium', 0.19, 'Active', '2023-10-12'),
+(1009, 'Xiaomi 14 Pro', 'Xiaomi', 'Smartphone', 'Premium Phone', 600, 899, 'Black', 'Large', 0.22, 'Active', '2024-02-25'),
+(1010, 'OnePlus 12', 'OnePlus', 'Smartphone', 'Premium Phone', 650, 899, 'Green', 'Large', 0.22, 'Active', '2024-01-23'),
+(1011, 'Oppo Find X7', 'Oppo', 'Smartphone', 'Premium Phone', 600, 849, 'Silver', 'Medium', 0.20, 'Active', '2024-01-15'),
+(1012, 'Realme GT5', 'Realme', 'Smartphone', 'Mid-range Phone', 400, 599, 'Black', 'Medium', 0.19, 'Active', '2023-08-28'),
+(1013, 'Nothing Phone 2', 'Nothing', 'Smartphone', 'Mid-range Phone', 450, 679, 'White', 'Medium', 0.20, 'Active', '2023-07-11'),
+(1014, 'Sony Xperia 1 V', 'Sony', 'Smartphone', 'Premium Phone', 800, 1199, 'Black', 'Large', 0.19, 'Active', '2023-05-11'),
+(1015, 'Motorola Edge 40 Pro', 'Motorola', 'Smartphone', 'Mid-range Phone', 550, 799, 'Blue', 'Medium', 0.20, 'Active', '2023-04-04');
+
+-- Laptops (15 produits : 1016-1030)
+INSERT INTO dw.DimProduct (ProductBK, ProductName, Brand, Category, SubCategory, StandardCost, ListPrice, Color, Size, Weight, ProductStatus, LaunchDate) VALUES
+(1016, 'MacBook Pro 14" M3 Pro', 'Apple', 'Laptop', 'Professional', 1600, 2299, 'Space Gray', '14 inch', 1.6, 'Active', '2023-11-07'),
+(1017, 'MacBook Air 13" M3', 'Apple', 'Laptop', 'Consumer', 900, 1299, 'Midnight', '13 inch', 1.2, 'Active', '2024-03-04'),
+(1018, 'MacBook Pro 16" M3 Max', 'Apple', 'Laptop', 'Professional', 2200, 3199, 'Silver', '16 inch', 2.1, 'Active', '2023-11-07'),
+(1019, 'Dell XPS 15 9530', 'Dell', 'Laptop', 'Professional', 1300, 1899, 'Platinum', '15 inch', 1.9, 'Active', '2023-05-09'),
+(1020, 'Dell XPS 13 Plus', 'Dell', 'Laptop', 'Consumer', 1000, 1499, 'Graphite', '13 inch', 1.2, 'Active', '2022-04-28'),
+(1021, 'HP Spectre x360 14', 'HP', 'Laptop', 'Premium', 1100, 1599, 'Nocturne Blue', '14 inch', 1.4, 'Active', '2023-10-03'),
+(1022, 'HP Envy 16', 'HP', 'Laptop', 'Consumer', 1000, 1449, 'Natural Silver', '16 inch', 2.0, 'Active', '2023-08-22'),
+(1023, 'Lenovo ThinkPad X1 Carbon Gen 11', 'Lenovo', 'Laptop', 'Business', 1200, 1799, 'Black', '14 inch', 1.1, 'Active', '2023-02-26'),
+(1024, 'Lenovo Yoga 9i', 'Lenovo', 'Laptop', 'Premium', 1100, 1599, 'Storm Grey', '14 inch', 1.4, 'Active', '2023-01-03'),
+(1025, 'ASUS ROG Zephyrus G14', 'ASUS', 'Laptop', 'Gaming', 1300, 1899, 'Moonlight White', '14 inch', 1.7, 'Active', '2023-01-04'),
+(1026, 'ASUS ZenBook 14 OLED', 'ASUS', 'Laptop', 'Consumer', 800, 1199, 'Pine Grey', '14 inch', 1.4, 'Active', '2023-05-24'),
+(1027, 'Microsoft Surface Laptop 5', 'Microsoft', 'Laptop', 'Premium', 1000, 1499, 'Platinum', '13 inch', 1.3, 'Active', '2022-10-25'),
+(1028, 'Acer Swift X', 'Acer', 'Laptop', 'Consumer', 750, 1099, 'Steel Gray', '14 inch', 1.4, 'Active', '2023-06-07'),
+(1029, 'MSI Prestige 14 Evo', 'MSI', 'Laptop', 'Business', 950, 1399, 'Carbon Gray', '14 inch', 1.3, 'Active', '2023-03-15'),
+(1030, 'Razer Blade 14', 'Razer', 'Laptop', 'Gaming', 1400, 1999, 'Black', '14 inch', 1.8, 'Active', '2023-06-20');
+
+-- Tablets (10 produits : 1031-1040)
+INSERT INTO dw.DimProduct (ProductBK, ProductName, Brand, Category, SubCategory, StandardCost, ListPrice, Color, Size, Weight, ProductStatus, LaunchDate) VALUES
+(1031, 'iPad Pro 12.9" M2 256GB', 'Apple', 'Tablet', 'Professional', 900, 1299, 'Space Gray', '12.9 inch', 0.68, 'Active', '2022-10-18'),
+(1032, 'iPad Air 5 256GB', 'Apple', 'Tablet', 'Consumer', 550, 799, 'Blue', '10.9 inch', 0.46, 'Active', '2022-03-08'),
+(1033, 'iPad 10th Gen 64GB', 'Apple', 'Tablet', 'Budget', 350, 499, 'Silver', '10.9 inch', 0.48, 'Active', '2022-10-18'),
+(1034, 'Samsung Galaxy Tab S9 Ultra', 'Samsung', 'Tablet', 'Professional', 850, 1199, 'Graphite', '14.6 inch', 0.73, 'Active', '2023-08-11'),
+(1035, 'Samsung Galaxy Tab S9', 'Samsung', 'Tablet', 'Consumer', 650, 899, 'Beige', '11 inch', 0.50, 'Active', '2023-08-11'),
+(1036, 'Microsoft Surface Pro 9', 'Microsoft', 'Tablet', 'Professional', 800, 1199, 'Platinum', '13 inch', 0.88, 'Active', '2022-10-25'),
+(1037, 'Lenovo Tab P12 Pro', 'Lenovo', 'Tablet', 'Premium', 600, 899, 'Storm Grey', '12.6 inch', 0.57, 'Active', '2023-01-05'),
+(1038, 'Xiaomi Pad 6 Pro', 'Xiaomi', 'Tablet', 'Mid-range', 400, 599, 'Graphite Gray', '11 inch', 0.49, 'Active', '2023-04-18'),
+(1039, 'OnePlus Pad', 'OnePlus', 'Tablet', 'Mid-range', 420, 629, 'Halo Green', '11.6 inch', 0.55, 'Active', '2023-04-28'),
+(1040, 'Huawei MatePad Pro', 'Huawei', 'Tablet', 'Premium', 550, 799, 'Black', '11 inch', 0.46, 'Active', '2023-09-25');
+
+-- Accessories (10 produits : 1041-1050)
+INSERT INTO dw.DimProduct (ProductBK, ProductName, Brand, Category, SubCategory, StandardCost, ListPrice, Color, Size, Weight, ProductStatus, LaunchDate) VALUES
+(1041, 'AirPods Pro 2nd Gen', 'Apple', 'Accessory', 'Audio', 150, 249, 'White', 'Standard', 0.05, 'Active', '2022-09-07'),
+(1042, 'AirPods Max', 'Apple', 'Accessory', 'Audio', 350, 549, 'Silver', 'Large', 0.38, 'Active', '2020-12-15'),
+(1043, 'Samsung Galaxy Buds2 Pro', 'Samsung', 'Accessory', 'Audio', 120, 199, 'Graphite', 'Standard', 0.05, 'Active', '2022-08-10'),
+(1044, 'Sony WH-1000XM5', 'Sony', 'Accessory', 'Audio', 220, 399, 'Black', 'Standard', 0.25, 'Active', '2022-05-12'),
+(1045, 'Bose QuietComfort Ultra', 'Bose', 'Accessory', 'Audio', 250, 429, 'Black', 'Standard', 0.25, 'Active', '2023-09-14'),
+(1046, 'Apple Watch Ultra 2', 'Apple', 'Accessory', 'Wearable', 500, 799, 'Titanium', 'Large', 0.06, 'Active', '2023-09-12'),
+(1047, 'Samsung Galaxy Watch6', 'Samsung', 'Accessory', 'Wearable', 200, 329, 'Graphite', 'Medium', 0.04, 'Active', '2023-08-11'),
+(1048, 'Anker PowerCore 25600', 'Anker', 'Accessory', 'Power', 40, 79, 'Black', 'Portable', 0.50, 'Active', '2022-01-15'),
+(1049, 'Logitech MX Master 3S', 'Logitech', 'Accessory', 'Peripheral', 60, 99, 'Black', 'Standard', 0.14, 'Active', '2022-05-25'),
+(1050, 'Apple Magic Keyboard', 'Apple', 'Accessory', 'Peripheral', 80, 149, 'White', 'Standard', 0.23, 'Active', '2021-04-30');
+
+DECLARE @ProductCount INT;
+SELECT @ProductCount = COUNT(*) FROM dw.DimProduct;
+PRINT '   ✓ ' + CAST(@ProductCount AS VARCHAR) + ' produits chargés';
+PRINT '';
+
+/* =============================================================================
+   5. DIM_STORE (5 magasins)
+   ============================================================================= */
+
+PRINT '5. DimStore (5 magasins)...';
+
+INSERT INTO dw.DimStore (StoreBK, StoreName, StoreType, City, Country, Region, OpeningDate, StoreSize, ManagerName) VALUES
+(1, 'TechMart Tunis Centre Ville', 'Standard', 'Tunis', 'Tunisia', 'North Africa', '2020-01-15', 500, 'Ahmed Mansouri'),
+(2, 'TechMart Paris Champs-Élysées', 'Flagship', 'Paris', 'France', 'Western Europe', '2018-06-01', 800, 'Marie Dubois'),
+(3, 'TechMart Berlin Alexanderplatz', 'Flagship', 'Berlin', 'Germany', 'Central Europe', '2019-03-20', 750, 'Hans Mueller'),
+(4, 'TechMart Casa Marina', 'Standard', 'Casablanca', 'Morocco', 'North Africa', '2021-09-10', 450, 'Youssef Alami'),
+(5, 'TechMart Lyon Part-Dieu', 'Standard', 'Lyon', 'France', 'Western Europe', '2020-11-05', 550, 'Antoine Bernard');
+
+DECLARE @StoreCount INT;
+SELECT @StoreCount = COUNT(*) FROM dw.DimStore;
+PRINT '   ✓ ' + CAST(@StoreCount AS VARCHAR) + ' magasins chargés';
+PRINT '';
+
+/* =============================================================================
+   6. DIM_SALESPERSON (15 vendeurs)
+   ============================================================================= */
+
+PRINT '6. DimSalesPerson (15 vendeurs)...';
+
+-- Tunis (3 vendeurs)
+INSERT INTO dw.DimSalesPerson (SalesPersonBK, SalesPersonName, Email, Phone, HireDate, JobTitle, Department, SalesTarget, CommissionRate) VALUES
+(501, 'Sami Gharbi', 'sami.gharbi@techmart.com', '+21698123456', '2020-02-01', 'Sales Associate', 'Sales', 80000, 0.03),
+(502, 'Nadia Khelifi', 'nadia.khelifi@techmart.com', '+21698234567', '2020-03-15', 'Sales Associate', 'Sales', 75000, 0.03),
+(503, 'Ali Mansouri', 'ali.mansouri@techmart.com', '+21698345678', '2021-01-10', 'Sales Associate', 'Sales', 70000, 0.03);
+
+-- Paris (4 vendeurs)
+INSERT INTO dw.DimSalesPerson (SalesPersonBK, SalesPersonName, Email, Phone, HireDate, JobTitle, Department, SalesTarget, CommissionRate) VALUES
+(504, 'Marc Dubois', 'marc.dubois@techmart.com', '+33612345678', '2018-07-01', 'Senior Sales', 'Sales', 100000, 0.035),
+(505, 'Julie Moreau', 'julie.moreau@techmart.com', '+33612456789', '2019-02-15', 'Sales Associate', 'Sales', 90000, 0.03),
+(506, 'David Laurent', 'david.laurent@techmart.com', '+33612567890', '2019-09-01', 'Sales Associate', 'Sales', 85000, 0.03),
+(507, 'Claire Petit', 'claire.petit@techmart.com', '+33612678901', '2020-11-20', 'Sales Associate', 'Sales', 80000, 0.03);
+
+-- Berlin (3 vendeurs)
+INSERT INTO dw.DimSalesPerson (SalesPersonBK, SalesPersonName, Email, Phone, HireDate, JobTitle, Department, SalesTarget, CommissionRate) VALUES
+(508, 'Stefan Mueller', 'stefan.mueller@techmart.com', '+491701234567', '2019-04-01', 'Senior Sales', 'Sales', 95000, 0.035),
+(509, 'Katrin Schmidt', 'katrin.schmidt@techmart.com', '+491702345678', '2020-01-15', 'Sales Associate', 'Sales', 85000, 0.03),
+(510, 'Michael Wagner', 'michael.wagner@techmart.com', '+491703456789', '2020-08-01', 'Sales Associate', 'Sales', 80000, 0.03);
+
+-- Casablanca (2 vendeurs)
+INSERT INTO dw.DimSalesPerson (SalesPersonBK, SalesPersonName, Email, Phone, HireDate, JobTitle, Department, SalesTarget, CommissionRate) VALUES
+(511, 'Youssef Alami', 'youssef.alami@techmart.com', '+212612345678', '2021-10-01', 'Sales Associate', 'Sales', 75000, 0.03),
+(512, 'Imane Benjelloun', 'imane.benjelloun@techmart.com', '+212612456789', '2022-01-15', 'Sales Associate', 'Sales', 70000, 0.03);
+
+-- Lyon (3 vendeurs)
+INSERT INTO dw.DimSalesPerson (SalesPersonBK, SalesPersonName, Email, Phone, HireDate, JobTitle, Department, SalesTarget, CommissionRate) VALUES
+(513, 'Antoine Bernard', 'antoine.bernard@techmart.com', '+33675123456', '2020-12-01', 'Sales Associate', 'Sales', 80000, 0.03),
+(514, 'Émilie Rousseau', 'emilie.rousseau@techmart.com', '+33675234567', '2021-03-15', 'Sales Associate', 'Sales', 75000, 0.03),
+(515, 'Julien Faure', 'julien.faure@techmart.com', '+33675345678', '2021-09-01', 'Sales Associate', 'Sales', 75000, 0.03);
+
+DECLARE @SalesPersonCount INT;
+SELECT @SalesPersonCount = COUNT(*) FROM dw.DimSalesPerson WHERE SalesPersonSK > 0;
+PRINT '   ✓ ' + CAST(@SalesPersonCount AS VARCHAR) + ' vendeurs chargés';
+PRINT '';
+
+/* =============================================================================
+   7. DIM_PROMOTION (20 promotions)
+   ============================================================================= */
+
+PRINT '7. DimPromotion (20 promotions)...';
+
+INSERT INTO dw.DimPromotion (PromotionBK, PromotionName, PromotionType, DiscountPercent, StartDate, EndDate, MinPurchaseAmount, MaxDiscountAmount, TargetCategory, TargetSegment) VALUES
+-- Black Friday promotions
+(1, 'Black Friday 2022', 'Percentage', 25.00, '2022-11-25', '2022-11-27', 100, 500, 'All', 'All'),
+(2, 'Black Friday 2023', 'Percentage', 30.00, '2023-11-24', '2023-11-26', 100, 600, 'All', 'All'),
+(3, 'Black Friday 2024', 'Percentage', 28.00, '2024-11-29', '2024-12-01', 100, 550, 'All', 'All'),
+
+-- Summer Sales
+(4, 'Summer Sale 2022', 'Percentage', 15.00, '2022-07-01', '2022-08-31', 50, 300, 'All', 'All'),
+(5, 'Summer Sale 2023', 'Percentage', 20.00, '2023-07-01', '2023-08-31', 50, 400, 'All', 'All'),
+(6, 'Summer Sale 2024', 'Percentage', 18.00, '2024-07-01', '2024-08-31', 50, 350, 'All', 'All'),
+
+-- Christmas promotions
+(7, 'Christmas 2022', 'Percentage', 20.00, '2022-12-15', '2022-12-26', 100, 400, 'All', 'All'),
+(8, 'Christmas 2023', 'Percentage', 22.00, '2023-12-15', '2023-12-26', 100, 450, 'All', 'All'),
+(9, 'Christmas 2024', 'Percentage', 25.00, '2024-12-15', '2024-12-26', 100, 500, 'All', 'All'),
+
+-- Back to School
+(10, 'Back to School 2022', 'Percentage', 12.00, '2022-08-15', '2022-09-15', 200, 250, 'Laptop', 'All'),
+(11, 'Back to School 2023', 'Percentage', 15.00, '2023-08-15', '2023-09-15', 200, 300, 'Laptop', 'All'),
+(12, 'Back to School 2024', 'Percentage', 15.00, '2024-08-15', '2024-09-15', 200, 300, 'Laptop', 'All'),
+
+-- Smartphone Launch promotions
+(13, 'Smartphone Launch Spring 2022', 'Percentage', 10.00, '2022-03-01', '2022-04-30', 300, 200, 'Smartphone', 'All'),
+(14, 'Smartphone Launch Spring 2023', 'Percentage', 12.00, '2023-03-01', '2023-04-30', 300, 250, 'Smartphone', 'All'),
+(15, 'Smartphone Launch Fall 2023', 'Percentage', 10.00, '2023-09-01', '2023-10-31', 300, 200, 'Smartphone', 'All'),
+(16, 'Smartphone Launch Spring 2024', 'Percentage', 12.00, '2024-03-01', '2024-04-30', 300, 250, 'Smartphone', 'All'),
+
+-- Clearance Sales
+(17, 'Winter Clearance 2022', 'Percentage', 30.00, '2022-01-15', '2022-02-15', 50, 400, 'All', 'All'),
+(18, 'Winter Clearance 2023', 'Percentage', 35.00, '2023-01-15', '2023-02-15', 50, 450, 'All', 'All'),
+(19, 'Winter Clearance 2024', 'Percentage', 32.00, '2024-01-15', '2024-02-15', 50, 420, 'All', 'All'),
+
+-- Premium Customer exclusive
+(20, 'Premium VIP 2024', 'Percentage', 20.00, '2024-01-01', '2024-12-31', 500, 1000, 'All', 'Premium');
+
+DECLARE @PromotionCount INT;
+SELECT @PromotionCount = COUNT(*) FROM dw.DimPromotion WHERE PromotionSK > 0;
+PRINT '   ✓ ' + CAST(@PromotionCount AS VARCHAR) + ' promotions chargées';
+PRINT '';
+
+/* =============================================================================
+   8. DIM_CAMPAIGN (12 campagnes)
+   ============================================================================= */
+
+PRINT '8. DimCampaign (12 campagnes)...';
+
+INSERT INTO dw.DimCampaign (CampaignBK, CampaignName, CampaignType, Channel, LaunchDate, EndDate, BudgetAmount, TargetAudience) VALUES
+-- 2022 Campaigns
+(1, 'New Year Launch 2022', 'Social Media', 'Facebook', '2022-01-01', '2022-03-31', 50000, 'Tech Enthusiasts'),
+(2, 'Spring Collection 2022', 'Email', 'Email Marketing', '2022-04-01', '2022-06-30', 45000, 'Existing Customers'),
+(3, 'Summer Tech Fest 2022', 'Online', 'Google Ads', '2022-07-01', '2022-09-30', 60000, 'Young Professionals'),
+(4, 'Holiday Season 2022', 'TV', 'Television', '2022-10-01', '2022-12-31', 80000, 'General Public'),
+
+-- 2023 Campaigns
+(5, 'New Year Launch 2023', 'Social Media', 'Instagram', '2023-01-01', '2023-03-31', 55000, 'Tech Enthusiasts'),
+(6, 'Spring Collection 2023', 'Email', 'Email Marketing', '2023-04-01', '2023-06-30', 50000, 'Existing Customers'),
+(7, 'Summer Tech Fest 2023', 'Online', 'Google Ads', '2023-07-01', '2023-09-30', 65000, 'Young Professionals'),
+(8, 'Holiday Season 2023', 'Social Media', 'Facebook', '2023-10-01', '2023-12-31', 85000, 'General Public'),
+
+-- 2024 Campaigns
+(9, 'New Year Launch 2024', 'Social Media', 'TikTok', '2024-01-01', '2024-03-31', 60000, 'Gen Z'),
+(10, 'Spring Collection 2024', 'Email', 'Email Marketing', '2024-04-01', '2024-06-30', 55000, 'Existing Customers'),
+(11, 'Summer Tech Fest 2024', 'Online', 'Google Ads', '2024-07-01', '2024-09-30', 70000, 'Young Professionals'),
+(12, 'Holiday Season 2024', 'Social Media', 'Multi-Channel', '2024-10-01', '2024-12-31', 90000, 'General Public');
+
+DECLARE @CampaignCount INT;
+SELECT @CampaignCount = COUNT(*) FROM dw.DimCampaign WHERE CampaignSK > 0;
+PRINT '   ✓ ' + CAST(@CampaignCount AS VARCHAR) + ' campagnes chargées';
+PRINT '';
+
+/* =============================================================================
+   VALIDATION FINALE
+   ============================================================================= */
+
+PRINT '=================================================================';
+PRINT 'RÉCAPITULATIF DES DIMENSIONS CHARGÉES';
+PRINT '=================================================================';
+PRINT '';
+
+SELECT 'DimDate' AS [Dimension], COUNT(*) AS [Lignes] FROM dw.DimDate
+UNION ALL SELECT 'DimTime', COUNT(*) FROM dw.DimTime
+UNION ALL SELECT 'DimCustomer', COUNT(*) FROM dw.DimCustomer
+UNION ALL SELECT 'DimProduct', COUNT(*) FROM dw.DimProduct
+UNION ALL SELECT 'DimStore', COUNT(*) FROM dw.DimStore
+UNION ALL SELECT 'DimSalesPerson', COUNT(*) FROM dw.DimSalesPerson WHERE SalesPersonSK > 0
+UNION ALL SELECT 'DimPromotion', COUNT(*) FROM dw.DimPromotion WHERE PromotionSK > 0
+UNION ALL SELECT 'DimCampaign', COUNT(*) FROM dw.DimCampaign WHERE CampaignSK > 0;
+
+PRINT '';
+PRINT '=================================================================';
+PRINT '✓✓✓ TOUTES LES DIMENSIONS CHARGÉES AVEC SUCCÈS ✓✓✓';
+PRINT '=================================================================';
+PRINT '';
+PRINT 'Prochaine étape :';
+PRINT '  → Exécuter : 02B_LOAD_Facts_2022_2023.sql';
+PRINT '  → Puis : 02C_LOAD_Facts_2024.sql';
+PRINT '';
+
+GO

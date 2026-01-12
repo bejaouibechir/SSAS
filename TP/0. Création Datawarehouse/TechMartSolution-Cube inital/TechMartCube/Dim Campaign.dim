@@ -1,0 +1,240 @@
+﻿<Dimension xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:ddl2="http://schemas.microsoft.com/analysisservices/2003/engine/2" xmlns:ddl2_2="http://schemas.microsoft.com/analysisservices/2003/engine/2/2" xmlns:ddl100_100="http://schemas.microsoft.com/analysisservices/2008/engine/100/100" xmlns:ddl200="http://schemas.microsoft.com/analysisservices/2010/engine/200" xmlns:ddl200_200="http://schemas.microsoft.com/analysisservices/2010/engine/200/200" xmlns:ddl300="http://schemas.microsoft.com/analysisservices/2011/engine/300" xmlns:ddl300_300="http://schemas.microsoft.com/analysisservices/2011/engine/300/300" xmlns:ddl400="http://schemas.microsoft.com/analysisservices/2012/engine/400" xmlns:ddl400_400="http://schemas.microsoft.com/analysisservices/2012/engine/400/400" xmlns:ddl500="http://schemas.microsoft.com/analysisservices/2013/engine/500" xmlns:ddl500_500="http://schemas.microsoft.com/analysisservices/2013/engine/500/500" xmlns:dwd="http://schemas.microsoft.com/DataWarehouse/Designer/1.0" dwd:design-time-name="e32891fb-9de8-4f12-ba78-8ea97db3eb38" xmlns="http://schemas.microsoft.com/analysisservices/2003/engine">
+  <ID>Dim Campaign</ID>
+  <Name>Dim Campaign</Name>
+  <CreatedTimestamp>0001-01-01T00:00:00Z</CreatedTimestamp>
+  <LastSchemaUpdate>0001-01-01T00:00:00Z</LastSchemaUpdate>
+  <Annotations>
+    <Annotation>
+      <Name>http://schemas.microsoft.com/DataWarehouse/Designer/1.0:DiagramLayout</Name>
+    </Annotation>
+    <Annotation>
+      <Name>http://schemas.microsoft.com/DataWarehouse/Designer/1.0:ShowFriendlyNames</Name>
+      <Value>true</Value>
+    </Annotation>
+    <Annotation>
+      <Name>http://schemas.microsoft.com/DataWarehouse/Designer/1.0:ShowRelationshipNames</Name>
+      <Value>false</Value>
+    </Annotation>
+    <Annotation>
+      <Name>http://schemas.microsoft.com/DataWarehouse/Designer/1.0:UseDiagramDefaultLayout</Name>
+      <Value>true</Value>
+    </Annotation>
+    <Annotation>
+      <Name>http://schemas.microsoft.com/DataWarehouse/Designer/1.0:DiagramViewPortLeft</Name>
+      <Value>0</Value>
+    </Annotation>
+    <Annotation>
+      <Name>http://schemas.microsoft.com/DataWarehouse/Designer/1.0:DiagramViewPortTop</Name>
+      <Value>0</Value>
+    </Annotation>
+    <Annotation>
+      <Name>http://schemas.microsoft.com/DataWarehouse/Designer/1.0:DiagramBoundingLeft</Name>
+      <Value>0</Value>
+    </Annotation>
+    <Annotation>
+      <Name>http://schemas.microsoft.com/DataWarehouse/Designer/1.0:DiagramBoundingTop</Name>
+      <Value>0</Value>
+    </Annotation>
+    <Annotation>
+      <Name>http://schemas.microsoft.com/DataWarehouse/Designer/1.0:DiagramZoom</Name>
+      <Value>100</Value>
+    </Annotation>
+  </Annotations>
+  <LastProcessed>0001-01-01T00:00:00Z</LastProcessed>
+  <State>Unprocessed</State>
+  <Source xsi:type="DataSourceViewBinding" dwd:design-time-name="7218f38e-f382-49e2-83f2-6a843ca4f2f9">
+    <DataSourceViewID>DW</DataSourceViewID>
+  </Source>
+  <ErrorConfiguration dwd:design-time-name="489a4cc3-b970-4f15-b18c-24d6ded3f50e">
+    <KeyNotFound>ReportAndStop</KeyNotFound>
+    <KeyDuplicate>ReportAndStop</KeyDuplicate>
+    <NullKeyNotAllowed>ReportAndStop</NullKeyNotAllowed>
+  </ErrorConfiguration>
+  <CurrentStorageMode>Molap</CurrentStorageMode>
+  <Attributes>
+    <Attribute dwd:design-time-name="f9b64a05-aeb8-4c5b-9fa8-3be982514fee">
+      <ID>Campaign SK</ID>
+      <Name>Campaign SK</Name>
+      <Usage>Key</Usage>
+      <KeyColumns>
+        <KeyColumn dwd:design-time-name="ca81c773-16f6-405b-ac61-8f71772d9903">
+          <DataType>Integer</DataType>
+          <Source xsi:type="ColumnBinding" dwd:design-time-name="7344da85-6903-4e8f-9839-52743f3e137e">
+            <TableID>dw_DimCampaign</TableID>
+            <ColumnID>CampaignSK</ColumnID>
+          </Source>
+        </KeyColumn>
+      </KeyColumns>
+      <AttributeRelationships>
+        <AttributeRelationship dwd:design-time-name="d972b8bc-69b1-43ee-92f0-0c47770dd259">
+          <AttributeID>Campaign BK</AttributeID>
+          <Name>Campaign BK</Name>
+        </AttributeRelationship>
+        <AttributeRelationship dwd:design-time-name="8c92addf-be03-4fa6-9411-cebc430af0d3">
+          <AttributeID>Campaign Name</AttributeID>
+          <Name>Campaign Name</Name>
+        </AttributeRelationship>
+        <AttributeRelationship dwd:design-time-name="39b570f5-06a7-4a67-a6be-d72434721e4e">
+          <AttributeID>Campaign Type</AttributeID>
+          <Name>Campaign Type</Name>
+        </AttributeRelationship>
+        <AttributeRelationship dwd:design-time-name="2211c21c-dfce-4ce8-9811-cb55b01d2023">
+          <AttributeID>Channel</AttributeID>
+          <Name>Channel</Name>
+        </AttributeRelationship>
+        <AttributeRelationship dwd:design-time-name="22a86834-ef4b-4b13-85cf-c31dffb024c3">
+          <AttributeID>Launch Date</AttributeID>
+          <Name>Launch Date</Name>
+        </AttributeRelationship>
+        <AttributeRelationship dwd:design-time-name="5d3f50a1-eb5f-4f93-8635-17387484f425">
+          <AttributeID>End Date</AttributeID>
+          <Name>End Date</Name>
+        </AttributeRelationship>
+        <AttributeRelationship dwd:design-time-name="c9e5b2ab-8f5a-4f44-8179-37b8f1d267ee">
+          <AttributeID>Budget Amount</AttributeID>
+          <Name>Budget Amount</Name>
+        </AttributeRelationship>
+        <AttributeRelationship dwd:design-time-name="858e9242-dd11-4d8a-842e-28c4c1329e94">
+          <AttributeID>Target Audience</AttributeID>
+          <Name>Target Audience</Name>
+        </AttributeRelationship>
+      </AttributeRelationships>
+      <OrderBy>Key</OrderBy>
+      <ddl200:ProcessingState>Unprocessed</ddl200:ProcessingState>
+      <ddl300:AttributeHierarchyProcessingState>Unprocessed</ddl300:AttributeHierarchyProcessingState>
+    </Attribute>
+    <Attribute dwd:design-time-name="7dfc40f3-224d-4f19-9f24-a76c9115ff60">
+      <ID>Campaign BK</ID>
+      <Name>Campaign BK</Name>
+      <KeyColumns>
+        <KeyColumn dwd:design-time-name="10ccab7e-ae1f-46d3-a50e-5b8c568f7670">
+          <DataType>Integer</DataType>
+          <Source xsi:type="ColumnBinding" dwd:design-time-name="72c9671e-95f6-4e07-a2b5-4a4e898fe278">
+            <TableID>dw_DimCampaign</TableID>
+            <ColumnID>CampaignBK</ColumnID>
+          </Source>
+        </KeyColumn>
+      </KeyColumns>
+      <OrderBy>Key</OrderBy>
+      <ddl200:ProcessingState>Unprocessed</ddl200:ProcessingState>
+      <ddl300:AttributeHierarchyProcessingState>Unprocessed</ddl300:AttributeHierarchyProcessingState>
+    </Attribute>
+    <Attribute dwd:design-time-name="f9ff3192-5c15-41a8-abf1-0567290bdcac">
+      <ID>Campaign Name</ID>
+      <Name>Campaign Name</Name>
+      <KeyColumns>
+        <KeyColumn dwd:design-time-name="e1b25143-9950-46e2-8754-efb626f12c59">
+          <DataType>WChar</DataType>
+          <DataSize>100</DataSize>
+          <Source xsi:type="ColumnBinding" dwd:design-time-name="ff9285dd-f79d-4f17-990a-005cfb002f20">
+            <TableID>dw_DimCampaign</TableID>
+            <ColumnID>CampaignName</ColumnID>
+          </Source>
+        </KeyColumn>
+      </KeyColumns>
+      <OrderBy>Key</OrderBy>
+      <ddl200:ProcessingState>Unprocessed</ddl200:ProcessingState>
+      <ddl300:AttributeHierarchyProcessingState>Unprocessed</ddl300:AttributeHierarchyProcessingState>
+    </Attribute>
+    <Attribute dwd:design-time-name="3f8c0c6e-7fa9-4101-8f8c-a75bf2f2e577">
+      <ID>Campaign Type</ID>
+      <Name>Campaign Type</Name>
+      <KeyColumns>
+        <KeyColumn dwd:design-time-name="9dd70591-0ead-4211-b4f6-8ca6b11eeef4">
+          <DataType>WChar</DataType>
+          <DataSize>50</DataSize>
+          <Source xsi:type="ColumnBinding" dwd:design-time-name="eeac99ad-0261-4315-a733-3318469b7465">
+            <TableID>dw_DimCampaign</TableID>
+            <ColumnID>CampaignType</ColumnID>
+          </Source>
+        </KeyColumn>
+      </KeyColumns>
+      <OrderBy>Key</OrderBy>
+      <ddl200:ProcessingState>Unprocessed</ddl200:ProcessingState>
+      <ddl300:AttributeHierarchyProcessingState>Unprocessed</ddl300:AttributeHierarchyProcessingState>
+    </Attribute>
+    <Attribute dwd:design-time-name="3e332a86-1f97-4e56-82af-439ddefd21b3">
+      <ID>Channel</ID>
+      <Name>Channel</Name>
+      <KeyColumns>
+        <KeyColumn dwd:design-time-name="c3f98fe4-5d08-4e58-9f8e-436e7e35735b">
+          <DataType>WChar</DataType>
+          <DataSize>50</DataSize>
+          <Source xsi:type="ColumnBinding" dwd:design-time-name="06b1a102-5167-4be4-b4f5-ac27e86631ab">
+            <TableID>dw_DimCampaign</TableID>
+            <ColumnID>Channel</ColumnID>
+          </Source>
+        </KeyColumn>
+      </KeyColumns>
+      <OrderBy>Key</OrderBy>
+      <ddl200:ProcessingState>Unprocessed</ddl200:ProcessingState>
+      <ddl300:AttributeHierarchyProcessingState>Unprocessed</ddl300:AttributeHierarchyProcessingState>
+    </Attribute>
+    <Attribute dwd:design-time-name="a94deba7-b020-4bad-b837-2891bdde3266">
+      <ID>Launch Date</ID>
+      <Name>Launch Date</Name>
+      <KeyColumns>
+        <KeyColumn dwd:design-time-name="a1d3e9b3-48dd-4ebb-840c-e346eeb2bd39">
+          <DataType>Date</DataType>
+          <Source xsi:type="ColumnBinding" dwd:design-time-name="ca5a4d68-ac5d-422c-9dbc-13d8c983a28f">
+            <TableID>dw_DimCampaign</TableID>
+            <ColumnID>LaunchDate</ColumnID>
+          </Source>
+        </KeyColumn>
+      </KeyColumns>
+      <OrderBy>Key</OrderBy>
+      <ddl200:ProcessingState>Unprocessed</ddl200:ProcessingState>
+      <ddl300:AttributeHierarchyProcessingState>Unprocessed</ddl300:AttributeHierarchyProcessingState>
+    </Attribute>
+    <Attribute dwd:design-time-name="48e80701-ab01-4d0d-9fbc-c49c81acc68a">
+      <ID>End Date</ID>
+      <Name>End Date</Name>
+      <KeyColumns>
+        <KeyColumn dwd:design-time-name="36e639ba-649e-47ec-87d3-8cf472d1b0c4">
+          <DataType>Date</DataType>
+          <Source xsi:type="ColumnBinding" dwd:design-time-name="40c736a8-5d1c-4c56-b176-51db7c60118a">
+            <TableID>dw_DimCampaign</TableID>
+            <ColumnID>EndDate</ColumnID>
+          </Source>
+        </KeyColumn>
+      </KeyColumns>
+      <OrderBy>Key</OrderBy>
+      <ddl200:ProcessingState>Unprocessed</ddl200:ProcessingState>
+      <ddl300:AttributeHierarchyProcessingState>Unprocessed</ddl300:AttributeHierarchyProcessingState>
+    </Attribute>
+    <Attribute dwd:design-time-name="a82a324d-1490-4e4a-b71b-26ab0edce4fd">
+      <ID>Budget Amount</ID>
+      <Name>Budget Amount</Name>
+      <KeyColumns>
+        <KeyColumn dwd:design-time-name="0e1805fe-090d-4deb-ba0e-e2350adf1dbd">
+          <DataType>Double</DataType>
+          <Source xsi:type="ColumnBinding" dwd:design-time-name="4619f227-3e3b-4178-b6cf-7e825aa2add1">
+            <TableID>dw_DimCampaign</TableID>
+            <ColumnID>BudgetAmount</ColumnID>
+          </Source>
+        </KeyColumn>
+      </KeyColumns>
+      <OrderBy>Key</OrderBy>
+      <ddl200:ProcessingState>Unprocessed</ddl200:ProcessingState>
+      <ddl300:AttributeHierarchyProcessingState>Unprocessed</ddl300:AttributeHierarchyProcessingState>
+    </Attribute>
+    <Attribute dwd:design-time-name="d471efb7-0310-4e8f-bca7-3641ede697ae">
+      <ID>Target Audience</ID>
+      <Name>Target Audience</Name>
+      <KeyColumns>
+        <KeyColumn dwd:design-time-name="cd3f5a83-2730-44fb-90e5-44302d0c4fa8">
+          <DataType>WChar</DataType>
+          <DataSize>100</DataSize>
+          <Source xsi:type="ColumnBinding" dwd:design-time-name="91171316-0bd6-4f09-bd61-506da3522f83">
+            <TableID>dw_DimCampaign</TableID>
+            <ColumnID>TargetAudience</ColumnID>
+          </Source>
+        </KeyColumn>
+      </KeyColumns>
+      <OrderBy>Key</OrderBy>
+      <ddl200:ProcessingState>Unprocessed</ddl200:ProcessingState>
+      <ddl300:AttributeHierarchyProcessingState>Unprocessed</ddl300:AttributeHierarchyProcessingState>
+    </Attribute>
+  </Attributes>
+  <ddl300:ProcessingState>Unprocessed</ddl300:ProcessingState>
+</Dimension>

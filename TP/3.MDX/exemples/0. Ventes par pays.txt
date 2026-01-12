@@ -1,0 +1,5 @@
+SELECT 
+[Measures].[Sales Amount] ON COLUMNS, 
+[Dim Sales Territory].[Sales Territory Hierarchy].[Sales Territory Country] ON ROWS
+FROM 
+[InternetSalesCube]

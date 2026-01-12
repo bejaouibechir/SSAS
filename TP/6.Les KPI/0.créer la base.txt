@@ -1,0 +1,195 @@
+/*
+====================================================
+ATELIER KPI SSAS - VERSION SIMPLIFIÉE
+FICHIER 1/3 : CRÉATION DE LA BASE DE DONNÉES
+====================================================
+Description: Architecture minimaliste pour démo KPI
+- 3 Dimensions (Time, Product, Customer)
+- 1 Table de Faits (Sales)
+Version: Simplifiée et testée
+====================================================
+*/
+
+-- Suppression de la base si elle existe
+USE master;
+GO
+
+IF EXISTS (SELECT name FROM sys.databases WHERE name = 'DW_KPI_Simple')
+BEGIN
+    PRINT 'Suppression de la base existante DW_KPI_Simple...';
+    ALTER DATABASE DW_KPI_Simple SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+    DROP DATABASE DW_KPI_Simple;
+    PRINT '✓ Base supprimée';
+END
+GO
+
+-- Création de la nouvelle base
+PRINT 'Création de la base DW_KPI_Simple...';
+CREATE DATABASE DW_KPI_Simple;
+GO
+
+USE DW_KPI_Simple;
+GO
+
+PRINT '✓ Base créée';
+PRINT '';
+
+/*
+====================================================
+DIMENSION 1: TEMPS
+====================================================
+*/
+
+PRINT 'Création DimTime...';
+
+CREATE TABLE DimTime (
+    TimeKey INT PRIMARY KEY,
+    FullDate DATE NOT NULL,
+    DayOfWeek INT NOT NULL,
+    DayName NVARCHAR(10) NOT NULL,
+    DayOfMonth INT NOT NULL,
+    Month INT NOT NULL,
+    MonthName NVARCHAR(10) NOT NULL,
+    YearMonth NVARCHAR(7) NOT NULL,
+    Quarter INT NOT NULL,
+    QuarterName NVARCHAR(6) NOT NULL,
+    Year INT NOT NULL,
+    IsWeekend BIT NOT NULL
+);
+
+CREATE INDEX IX_DimTime_Year ON DimTime(Year);
+CREATE INDEX IX_DimTime_YearMonth ON DimTime(YearMonth);
+
+PRINT '  ✓ DimTime créée';
+
+/*
+====================================================
+DIMENSION 2: PRODUIT
+====================================================
+*/
+
+PRINT 'Création DimProduct...';
+
+CREATE TABLE DimProduct (
+    ProductKey INT IDENTITY(1,1) PRIMARY KEY,
+    ProductCode NVARCHAR(20) NOT NULL UNIQUE,
+    ProductName NVARCHAR(100) NOT NULL,
+    ProductCategory NVARCHAR(50) NOT NULL,
+    UnitCost DECIMAL(10,2) NOT NULL,
+    StandardPrice DECIMAL(10,2) NOT NULL,
+    TargetMargin DECIMAL(5,2) NOT NULL
+);
+
+CREATE INDEX IX_DimProduct_Category ON DimProduct(ProductCategory);
+
+PRINT '  ✓ DimProduct créée';
+
+/*
+====================================================
+DIMENSION 3: CLIENT
+====================================================
+*/
+
+PRINT 'Création DimCustomer...';
+
+CREATE TABLE DimCustomer (
+    CustomerKey INT IDENTITY(1,1) PRIMARY KEY,
+    CustomerCode NVARCHAR(20) NOT NULL UNIQUE,
+    CustomerName NVARCHAR(100) NOT NULL,
+    CustomerSegment NVARCHAR(50) NOT NULL,
+    Region NVARCHAR(50) NOT NULL,
+    Country NVARCHAR(50) NOT NULL
+);
+
+CREATE INDEX IX_DimCustomer_Segment ON DimCustomer(CustomerSegment);
+CREATE INDEX IX_DimCustomer_Region ON DimCustomer(Region);
+
+PRINT '  ✓ DimCustomer créée';
+
+/*
+====================================================
+FAIT: VENTES
+====================================================
+*/
+
+PRINT 'Création FactSales...';
+
+CREATE TABLE FactSales (
+    SalesKey BIGINT IDENTITY(1,1) PRIMARY KEY,
+    TimeKey INT NOT NULL,
+    ProductKey INT NOT NULL,
+    CustomerKey INT NOT NULL,
+    
+    -- Quantités
+    OrderQuantity INT NOT NULL,
+    ReturnedQuantity INT NOT NULL DEFAULT 0,
+    
+    -- Prix et coûts
+    UnitPrice DECIMAL(10,2) NOT NULL,
+    StandardCost DECIMAL(10,2) NOT NULL,
+    Discount DECIMAL(5,2) NOT NULL DEFAULT 0,
+    
+    -- Qualité de service
+    OrderToShipDays INT NOT NULL,
+    IsLateDelivery BIT NOT NULL DEFAULT 0,
+    CustomerSatisfactionScore INT NULL,
+    
+    -- Objectifs
+    SalesTarget DECIMAL(15,2) NULL,
+    MarginTarget DECIMAL(15,2) NULL,
+    
+    -- Colonnes calculées (pas de sous-requêtes!)
+    GrossSalesAmount AS (OrderQuantity * UnitPrice),
+    NetSalesAmount AS (OrderQuantity * UnitPrice * (1 - Discount / 100.0)),
+    TotalCost AS (OrderQuantity * StandardCost),
+    GrossProfit AS (OrderQuantity * UnitPrice * (1 - Discount / 100.0) - OrderQuantity * StandardCost),
+    
+    -- Clés étrangères
+    CONSTRAINT FK_FactSales_Time FOREIGN KEY (TimeKey) REFERENCES DimTime(TimeKey),
+    CONSTRAINT FK_FactSales_Product FOREIGN KEY (ProductKey) REFERENCES DimProduct(ProductKey),
+    CONSTRAINT FK_FactSales_Customer FOREIGN KEY (CustomerKey) REFERENCES DimCustomer(CustomerKey)
+);
+
+CREATE INDEX IX_FactSales_TimeKey ON FactSales(TimeKey);
+CREATE INDEX IX_FactSales_ProductKey ON FactSales(ProductKey);
+CREATE INDEX IX_FactSales_CustomerKey ON FactSales(CustomerKey);
+
+PRINT '  ✓ FactSales créée';
+PRINT '';
+
+/*
+====================================================
+RÉSUMÉ
+====================================================
+*/
+
+PRINT '';
+PRINT '========================================';
+PRINT 'RÉSUMÉ';
+PRINT '========================================';
+PRINT '';
+
+SELECT 
+    TABLE_NAME,
+    CASE 
+        WHEN TABLE_NAME LIKE 'Dim%' THEN 'Dimension'
+        WHEN TABLE_NAME LIKE 'Fact%' THEN 'Fait'
+    END AS Type
+FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_TYPE = 'BASE TABLE'
+ORDER BY Type, TABLE_NAME;
+
+PRINT '';
+PRINT '========================================';
+PRINT '✓✓✓ BASE SIMPLIFIÉE CRÉÉE! ✓✓✓';
+PRINT '========================================';
+PRINT '';
+PRINT 'Structure:';
+PRINT '  - 3 Dimensions (Time, Product, Customer)';
+PRINT '  - 1 Fait (Sales)';
+PRINT '  - Architecture optimale pour démo KPI';
+PRINT '';
+PRINT 'Prochaine étape:';
+PRINT '  Exécutez: SIMPLE_2_Populate_Dimensions.sql';
+PRINT '';
+GO

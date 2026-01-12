@@ -1,0 +1,13 @@
+/* Selectionner les membres dont  le nom est jhon*/
+SELECT
+   { } ON 0,
+   { Filter(
+           [Customer].[Customer].[Customer].MEMBERS,
+           InStr(
+                 [Customer].[Customer].CurrentMember.Name,
+                'John'
+               ) > 0
+         )
+   } ON 1
+FROM
+   [Adventure Works]

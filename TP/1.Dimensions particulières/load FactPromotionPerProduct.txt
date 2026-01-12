@@ -1,0 +1,369 @@
+/* =============================================================================
+   03D_LOAD_FactPromotionPerProduct.sql
+   
+   CHARGEMENT FactPromotionPerProduct
+   
+   Ce script peuple la table de faits sans mesures avec les relations
+   entre DimProduct et DimPromotion basées sur la logique business :
+   
+   RÈGLES DE COUVERTURE PROMOTIONNELLE :
+   --------------------------------------
+   1. Promotions "All" (TargetCategory = 'All')
+      → S'appliquent à TOUS les produits
+   
+   2. Promotions ciblées (TargetCategory = 'Smartphone', 'Laptop', etc.)
+      → S'appliquent uniquement aux produits de cette catégorie
+   
+   3. Promotions par segment client
+      → Actuellement ignorées (future extension possible)
+   
+   RÉSULTAT ATTENDU :
+   ------------------
+   • Black Friday → Tous les 50 produits (50 lignes)
+   • Summer Sale → Tous les 50 produits (50 lignes)
+   • Promo Smartphones → 15 smartphones uniquement (15 lignes)
+   • Etc.
+   
+   Total attendu : ~400-600 relations Promotion-Product
+   
+   Prérequis :
+   - 03C_CREATE_FactPromotionPerProduct.sql exécuté
+   - DimProduct contient 50 produits
+   - DimPromotion contient 20 promotions
+   
+   Durée : < 5 secondes
+   
+   ============================================================================= */
+
+USE dbo;
+GO
+
+SET NOCOUNT ON;
+GO
+
+PRINT '=================================================================';
+PRINT 'CHARGEMENT FactPromotionPerProduct';
+PRINT '=================================================================';
+PRINT '';
+
+/* =============================================================================
+   ÉTAPE 1 : VÉRIFICATIONS PRÉALABLES
+   ============================================================================= */
+
+PRINT '1. Vérifications...';
+PRINT '';
+
+-- Vérifier que FactPromotionPerProduct existe
+IF OBJECT_ID('dbo.FactPromotionPerProduct', 'U') IS NULL
+BEGIN
+    PRINT '✗ ERREUR : FactPromotionPerProduct n''existe pas !';
+    PRINT '  → Exécutez d''abord : 03C_CREATE_FactPromotionPerProduct.sql';
+    PRINT '';
+    RETURN;
+END;
+
+PRINT '   ✓ FactPromotionPerProduct existe';
+
+-- Vérifier que DimProduct contient des données
+DECLARE @ProductCount INT;
+SELECT @ProductCount = COUNT(*) FROM dbo.DimProduct;
+
+IF @ProductCount = 0
+BEGIN
+    PRINT '✗ ERREUR : DimProduct est vide !';
+    PRINT '  → Exécutez d''abord : 02A_LOAD_Dimensions.sql';
+    PRINT '';
+    RETURN;
+END;
+
+PRINT '   ✓ DimProduct contient ' + CAST(@ProductCount AS VARCHAR) + ' produits';
+
+-- Vérifier que DimPromotion contient des données
+DECLARE @PromotionCount INT;
+SELECT @PromotionCount = COUNT(*) FROM dbo.DimPromotion WHERE PromotionSK > 0;
+
+IF @PromotionCount = 0
+BEGIN
+    PRINT '✗ ERREUR : DimPromotion est vide !';
+    PRINT '  → Exécutez d''abord : 02A_LOAD_Dimensions.sql';
+    PRINT '';
+    RETURN;
+END;
+
+PRINT '   ✓ DimPromotion contient ' + CAST(@PromotionCount AS VARCHAR) + ' promotions';
+
+-- Vérifier si la table contient déjà des données
+DECLARE @ExistingCount INT;
+SELECT @ExistingCount = COUNT(*) FROM dbo.FactPromotionPerProduct;
+
+IF @ExistingCount > 0
+BEGIN
+    PRINT '';
+    PRINT '   ⚠️  FactPromotionPerProduct contient déjà ' + CAST(@ExistingCount AS VARCHAR) + ' relations';
+    PRINT '   Suppression des données existantes...';
+    TRUNCATE TABLE dbo.FactPromotionPerProduct;
+    PRINT '   ✓ Données supprimées';
+END;
+
+PRINT '';
+
+/* =============================================================================
+   ÉTAPE 2 : CHARGEMENT DES RELATIONS PROMOTION-PRODUCT
+   ============================================================================= */
+
+PRINT '2. Génération des relations Promotion ↔ Product...';
+PRINT '';
+
+-- Insérer les relations basées sur la logique de ciblage
+INSERT INTO dbo.FactPromotionPerProduct (
+    PromotionSK,
+    ProductSK,
+    StartDate,
+    EndDate,
+    IsActive,
+    ETL_InsertedDate,
+    ETL_SourceSystem
+)
+SELECT 
+    prom.PromotionSK,
+    prod.ProductSK,
+    prom.StartDate,
+    prom.EndDate,
+    CASE 
+        WHEN GETDATE() BETWEEN prom.StartDate AND prom.EndDate THEN 1 
+        ELSE 0 
+    END AS IsActive,
+    GETDATE() AS ETL_InsertedDate,
+    'dbo_Extension' AS ETL_SourceSystem
+FROM dbo.DimPromotion prom
+CROSS JOIN dbo.DimProduct prod
+WHERE 
+    -- Exclure la promotion par défaut (-1)
+    prom.PromotionSK > 0
+    
+    -- Règle 1 : Promotions "All" s'appliquent à tous les produits
+    AND (
+        prom.TargetCategory = 'All'
+        
+        -- Règle 2 : Promotions ciblées s'appliquent à leur catégorie
+        OR prom.TargetCategory = prod.Category
+    );
+
+DECLARE @RelationCount INT;
+SELECT @RelationCount = COUNT(*) FROM dbo.FactPromotionPerProduct;
+
+PRINT '   ✓ ' + CAST(@RelationCount AS VARCHAR) + ' relations créées';
+PRINT '';
+
+/* =============================================================================
+   VALIDATION ET STATISTIQUES
+   ============================================================================= */
+
+PRINT '=================================================================';
+PRINT 'VALIDATION ET STATISTIQUES';
+PRINT '=================================================================';
+PRINT '';
+
+-- Statistique 1 : Nombre de produits par promotion
+PRINT '--- Couverture par Promotion ---';
+PRINT '';
+
+SELECT 
+    p.PromotionName AS [Promotion],
+    p.PromotionType AS [Type],
+    p.TargetCategory AS [Cible],
+    COUNT(f.ProductSK) AS [Nb Produits],
+    MIN(f.StartDate) AS [Début],
+    MAX(f.EndDate) AS [Fin],
+    SUM(CASE WHEN f.IsActive = 1 THEN 1 ELSE 0 END) AS [Actifs maintenant]
+FROM dbo.DimPromotion p
+LEFT JOIN dbo.FactPromotionPerProduct f ON p.PromotionSK = f.PromotionSK
+WHERE p.PromotionSK > 0
+GROUP BY p.PromotionName, p.PromotionType, p.TargetCategory
+ORDER BY COUNT(f.ProductSK) DESC;
+
+PRINT '';
+
+-- Statistique 2 : Nombre de promotions par produit
+PRINT '--- Couverture par Produit (TOP 10) ---';
+PRINT '';
+
+SELECT TOP 10
+    prod.ProductName AS [Produit],
+    prod.Category AS [Catégorie],
+    prod.Brand AS [Marque],
+    COUNT(f.PromotionSK) AS [Nb Promotions],
+    SUM(CASE WHEN f.IsActive = 1 THEN 1 ELSE 0 END) AS [Promos Actives]
+FROM dbo.DimProduct prod
+LEFT JOIN dbo.FactPromotionPerProduct f ON prod.ProductSK = f.ProductSK
+GROUP BY prod.ProductName, prod.Category, prod.Brand
+ORDER BY COUNT(f.PromotionSK) DESC;
+
+PRINT '';
+
+-- Statistique 3 : Répartition par catégorie
+PRINT '--- Répartition par Catégorie ---';
+PRINT '';
+
+-- Calculer d'abord les stats par produit, puis agréger par catégorie
+WITH ProductStats AS (
+    SELECT 
+        prod.Category,
+        prod.ProductSK,
+        COUNT(f.PromotionSK) AS NbPromos
+    FROM dbo.DimProduct prod
+    LEFT JOIN dbo.FactPromotionPerProduct f ON prod.ProductSK = f.ProductSK
+    GROUP BY prod.Category, prod.ProductSK
+)
+SELECT 
+    Category AS [Catégorie],
+    COUNT(DISTINCT ProductSK) AS [Nb Produits],
+    SUM(NbPromos) AS [Total Relations],
+    CAST(AVG(CAST(NbPromos AS FLOAT)) AS DECIMAL(5,1)) AS [Promos/Produit]
+FROM ProductStats
+GROUP BY Category
+ORDER BY Category;
+
+PRINT '';
+
+-- Statistique 4 : Produits jamais en promotion
+PRINT '--- Produits JAMAIS en Promotion ---';
+PRINT '';
+
+DECLARE @NeverPromoted INT;
+SELECT @NeverPromoted = COUNT(*)
+FROM dbo.DimProduct prod
+WHERE NOT EXISTS (
+    SELECT 1 
+    FROM dbo.FactPromotionPerProduct f 
+    WHERE f.ProductSK = prod.ProductSK
+);
+
+IF @NeverPromoted > 0
+BEGIN
+    SELECT 
+        prod.ProductName AS [Produit],
+        prod.Category AS [Catégorie],
+        prod.Brand AS [Marque],
+        CAST(prod.ListPrice AS DECIMAL(10,2)) AS [Prix]
+    FROM dbo.DimProduct prod
+    WHERE NOT EXISTS (
+        SELECT 1 
+        FROM dbo.FactPromotionPerProduct f 
+        WHERE f.ProductSK = prod.ProductSK
+    )
+    ORDER BY prod.ListPrice DESC;
+END
+ELSE
+BEGIN
+    PRINT '   ✓ Tous les produits ont au moins une promotion !';
+END;
+
+PRINT '';
+
+-- Statistique 5 : Promotions actives en ce moment
+PRINT '--- Promotions ACTIVES Maintenant ---';
+PRINT '';
+
+DECLARE @ActiveNow INT;
+SELECT @ActiveNow = COUNT(DISTINCT PromotionSK)
+FROM dbo.FactPromotionPerProduct
+WHERE IsActive = 1;
+
+IF @ActiveNow > 0
+BEGIN
+    SELECT 
+        p.PromotionName AS [Promotion],
+        p.DiscountPercent AS [% Remise],
+        COUNT(f.ProductSK) AS [Produits couverts],
+        f.StartDate AS [Début],
+        f.EndDate AS [Fin]
+    FROM dbo.FactPromotionPerProduct f
+    INNER JOIN dbo.DimPromotion p ON f.PromotionSK = p.PromotionSK
+    WHERE f.IsActive = 1
+    GROUP BY p.PromotionName, p.DiscountPercent, f.StartDate, f.EndDate
+    ORDER BY p.DiscountPercent DESC;
+END
+ELSE
+BEGIN
+    PRINT '   ℹ️  Aucune promotion active actuellement';
+    PRINT '   (Date actuelle : ' + CONVERT(VARCHAR, GETDATE(), 120) + ')';
+END;
+
+PRINT '';
+
+/* =============================================================================
+   EXEMPLES DE REQUÊTES ANALYTIQUES
+   ============================================================================= */
+
+PRINT '=================================================================';
+PRINT 'EXEMPLES DE REQUÊTES ANALYTIQUES';
+PRINT '=================================================================';
+PRINT '';
+
+PRINT '--- Exemple 1 : Promotions pour un produit spécifique ---';
+PRINT '';
+PRINT 'SELECT p.PromotionName, f.StartDate, f.EndDate, p.DiscountPercent';
+PRINT 'FROM FactPromotionPerProduct f';
+PRINT 'JOIN DimPromotion p ON f.PromotionSK = p.PromotionSK';
+PRINT 'JOIN DimProduct prod ON f.ProductSK = prod.ProductSK';
+PRINT 'WHERE prod.ProductName LIKE ''%iPhone%'';';
+PRINT '';
+
+PRINT '--- Exemple 2 : Produits éligibles à Black Friday ---';
+PRINT '';
+PRINT 'SELECT prod.ProductName, prod.Category, prod.ListPrice';
+PRINT 'FROM FactPromotionPerProduct f';
+PRINT 'JOIN DimProduct prod ON f.ProductSK = prod.ProductSK';
+PRINT 'JOIN DimPromotion p ON f.PromotionSK = p.PromotionSK';
+PRINT 'WHERE p.PromotionName LIKE ''%Black Friday%'';';
+PRINT '';
+
+PRINT '--- Exemple 3 : Produits avec 10+ promotions ---';
+PRINT '';
+PRINT 'SELECT prod.ProductName, COUNT(*) AS NbPromotions';
+PRINT 'FROM FactPromotionPerProduct f';
+PRINT 'JOIN DimProduct prod ON f.ProductSK = prod.ProductSK';
+PRINT 'GROUP BY prod.ProductName';
+PRINT 'HAVING COUNT(*) >= 10';
+PRINT 'ORDER BY COUNT(*) DESC;';
+PRINT '';
+
+/* =============================================================================
+   RÉCAPITULATIF
+   ============================================================================= */
+
+PRINT '=================================================================';
+PRINT '✓✓✓ FactPromotionPerProduct CHARGÉE AVEC SUCCÈS ✓✓✓';
+PRINT '=================================================================';
+PRINT '';
+PRINT 'Résumé :';
+PRINT '  ✓ ' + CAST(@RelationCount AS VARCHAR) + ' relations Promotion-Product créées';
+PRINT '  ✓ ' + CAST(@ProductCount AS VARCHAR) + ' produits couverts';
+PRINT '  ✓ ' + CAST(@PromotionCount AS VARCHAR) + ' promotions utilisées';
+PRINT '';
+PRINT 'Utilisation pédagogique :';
+PRINT '  ✓ Démonstration de Factless Fact Table';
+PRINT '  ✓ Modélisation Many-to-Many';
+PRINT '  ✓ Analyses de couverture promotionnelle';
+PRINT '  ✓ Requêtes avec COUNT au lieu de SUM';
+PRINT '';
+PRINT 'Extensions possibles (formation avancée) :';
+PRINT '  • Ajouter une dimension DimTime pour heures de promo';
+PRINT '  • Ajouter attributs de ciblage géographique';
+PRINT '  • Créer une vue pour simplifier les requêtes';
+PRINT '  • Ajouter des règles d''exclusion de produits';
+PRINT '';
+PRINT 'Modèle final du dbo :';
+PRINT '';
+PRINT '  STAR SCHEMA (principal) :';
+PRINT '    FactProductSales → DimDate, DimProduct, DimStore, etc.';
+PRINT '';
+PRINT '  SNOWFLAKE SCHEMA :';
+PRINT '    DimStore → DimGeography';
+PRINT '';
+PRINT '  FACTLESS FACT :';
+PRINT '    DimProduct ←→ FactPromotionPerProduct ←→ DimPromotion';
+PRINT '';
+
+GO

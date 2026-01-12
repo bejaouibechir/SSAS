@@ -1,0 +1,29 @@
+<AnalysisServicesUserConfiguration xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:ddl2="http://schemas.microsoft.com/analysisservices/2003/engine/2" xmlns:ddl2_2="http://schemas.microsoft.com/analysisservices/2003/engine/2/2" xmlns:ddl100_100="http://schemas.microsoft.com/analysisservices/2008/engine/100/100" xmlns:ddl200="http://schemas.microsoft.com/analysisservices/2010/engine/200" xmlns:ddl200_200="http://schemas.microsoft.com/analysisservices/2010/engine/200/200" xmlns:ddl300="http://schemas.microsoft.com/analysisservices/2011/engine/300" xmlns:ddl300_300="http://schemas.microsoft.com/analysisservices/2011/engine/300/300" xmlns:ddl400="http://schemas.microsoft.com/analysisservices/2012/engine/400" xmlns:ddl400_400="http://schemas.microsoft.com/analysisservices/2012/engine/400/400" xmlns:ddl500="http://schemas.microsoft.com/analysisservices/2013/engine/500" xmlns:ddl500_500="http://schemas.microsoft.com/analysisservices/2013/engine/500/500" xmlns:dwd="http://schemas.microsoft.com/DataWarehouse/Designer/1.0">
+  <Configurations>
+    <Configuration>
+      <Name>Development</Name>
+      <Options>
+        <UserIDs>
+          <ConfigurationSetting>
+            <Id>DW</Id>
+            <Name>DW</Name>
+            <Value xsi:type="xsd:string">AQAAANCMnd8BFdERjHoAwE/Cl+sBAAAAswSQuRcquUy6AeN51HhMPwAAAAAGAAAARABXAAAAEGYAAAABAAAgAAAA1z14YGafwN+HanrPmvPP/ZqkMD2IMEc7qSCJ+UKrAvgAAAAADoAAAAACAAAgAAAAJt2ad6E3vXtK/uCarhlBDr3Y2xoOMQ4X8YAsQgrmWg8QAAAAN8oYN+2VG0Vp+1Sp2ZgvWEAAAABFlgjj40MDfoYM2ypTBAf37l8f7IBWbP2eoZibrylTh7/iQv0TBoq7XXqhE3MYC7n83hC6dVzvmqsq464TLu2v</Value>
+          </ConfigurationSetting>
+        </UserIDs>
+        <UserPasswords>
+          <ConfigurationSetting>
+            <Id>DW</Id>
+            <Name>DW</Name>
+            <Value xsi:type="xsd:string">AQAAANCMnd8BFdERjHoAwE/Cl+sBAAAAswSQuRcquUy6AeN51HhMPwAAAAAGAAAARABXAAAAEGYAAAABAAAgAAAAYRJQSmcGSGW6bzbj+FqpbQjXckwiPStXRVaKVkqWxV8AAAAADoAAAAACAAAgAAAATo39GefIZKUmJ4OmEQxT9PlJRhZu5B2oPAESYh0VXPsQAAAAyCrP+5/Mlsy+m4QsYZ5xqkAAAADdjvEsLo3lO5W0cxKM5tC7qs9EalvssyEHHJ9ad3tF6Z/AVK/pntSaxeuXRiwrHMRWx7dokMmL1ohTWsY4SFN1</Value>
+          </ConfigurationSetting>
+        </UserPasswords>
+        <TargetServer>DESKTOP-463V422\SERVER2024</TargetServer>
+        <TargetDatabase>TechMartCube</TargetDatabase>
+        <StartObject>
+          <ObjectId></ObjectId>
+          <ObjectType>Current</ObjectType>
+        </StartObject>
+      </Options>
+    </Configuration>
+  </Configurations>
+</AnalysisServicesUserConfiguration>

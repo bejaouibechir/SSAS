@@ -1,0 +1,220 @@
+/* =============================================================================
+   03A_CREATE_DimGeography.sql
+   
+   EXTENSION PÉDAGOGIQUE : MODÈLE FLOCON DE NEIGE (SNOWFLAKE SCHEMA)
+   
+   Ce script crée la dimension DimGeography qui sera liée à DimStore.
+   
+   OBJECTIF PÉDAGOGIQUE :
+   ----------------------
+   Démontrer le modèle en flocon de neige de Kimball où une dimension 
+   (DimStore) référence une autre dimension (DimGeography) au lieu de 
+   dupliquer les attributs géographiques.
+   
+   AVANTAGES DU SNOWFLAKE :
+   - Normalisation des données géographiques
+   - Pas de duplication (1 ville = 1 enregistrement)
+   - Hiérarchies géographiques claires
+   - Analyses multi-niveaux (Ville → Pays → Région → Continent)
+   
+   INCONVÉNIENTS :
+   - Plus de jointures nécessaires
+   - Performance légèrement réduite vs Star Schema
+   
+   ⚠️ IMPORTANT : Ce script NE MODIFIE PAS la structure existante
+   ⚠️ Il PRÉPARE l'extension de DimStore avec GeographySK
+   
+   Prérequis :
+   - Base dbo créée avec 01_CREATE_dbo_Structure.sql
+   - DimStore chargé avec 02A_LOAD_Dimensions.sql
+   
+   Durée : < 10 secondes
+   
+   ============================================================================= */
+
+USE dbo;
+GO
+
+SET NOCOUNT ON;
+GO
+
+PRINT '=================================================================';
+PRINT 'CRÉATION DimGeography (SNOWFLAKE SCHEMA)';
+PRINT '=================================================================';
+PRINT '';
+
+/* =============================================================================
+   ÉTAPE 1 : VÉRIFICATION ET NETTOYAGE
+   ============================================================================= */
+
+PRINT '1. Vérification de l''environnement...';
+PRINT '';
+
+-- Vérifier que DimStore existe
+IF OBJECT_ID('dbo.DimStore', 'U') IS NULL
+BEGIN
+    PRINT '✗ ERREUR : DimStore n''existe pas !';
+    PRINT '  → Exécutez d''abord : 01_CREATE_dbo_Structure.sql';
+    PRINT '';
+    RETURN;
+END;
+
+PRINT '   ✓ DimStore existe';
+
+-- Vérifier si DimGeography existe déjà
+IF OBJECT_ID('dbo.DimGeography', 'U') IS NOT NULL
+BEGIN
+    PRINT '   ⚠️  DimGeography existe déjà';
+    PRINT '';
+    PRINT '   Options :';
+    PRINT '   A) Annuler et conserver la table existante';
+    PRINT '   B) Continuer (la table sera supprimée et recréée)';
+    PRINT '';
+    PRINT '   Suppression dans 3 secondes...';
+    
+    WAITFOR DELAY '00:00:03';
+    
+    PRINT '';
+    PRINT '   Suppression de l''ancienne structure...';
+    
+    -- Supprimer la FK de DimStore si elle existe
+    IF EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_DimStore_DimGeography')
+    BEGIN
+        ALTER TABLE dbo.DimStore DROP CONSTRAINT FK_DimStore_DimGeography;
+        PRINT '      ✓ Contrainte FK_DimStore_DimGeography supprimée';
+    END;
+    
+    -- Supprimer l'index sur GeographySK si il existe
+    IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_DimStore_GeographySK' 
+               AND object_id = OBJECT_ID('dbo.DimStore'))
+    BEGIN
+        DROP INDEX IX_DimStore_GeographySK ON dbo.DimStore;
+        PRINT '      ✓ Index IX_DimStore_GeographySK supprimé';
+    END;
+    
+    -- Supprimer la colonne GeographySK de DimStore si elle existe
+    IF EXISTS (SELECT 1 FROM sys.columns 
+               WHERE object_id = OBJECT_ID('dbo.DimStore') AND name = 'GeographySK')
+    BEGIN
+        ALTER TABLE dbo.DimStore DROP COLUMN GeographySK;
+        PRINT '      ✓ Colonne GeographySK supprimée de DimStore';
+    END;
+    
+    -- Supprimer la table DimGeography
+    DROP TABLE dbo.DimGeography;
+    PRINT '      ✓ Table DimGeography supprimée';
+    PRINT '';
+END;
+
+PRINT '   ✓ Environnement prêt';
+PRINT '';
+
+/* =============================================================================
+   ÉTAPE 2 : CRÉATION DE DimGeography
+   ============================================================================= */
+
+PRINT '2. Création de la table DimGeography...';
+PRINT '';
+
+CREATE TABLE dbo.DimGeography
+(
+    -- ========== CLÉS ==========
+    GeographySK       INT IDENTITY(1,1) NOT NULL,
+    GeographyBK       INT NOT NULL,
+    
+    -- ========== HIÉRARCHIE GÉOGRAPHIQUE ==========
+    -- Du plus détaillé (Ville) au plus agrégé (Continent)
+    
+    City              NVARCHAR(80) NOT NULL,      -- Niveau 1 (plus détaillé)
+    StateProvince     NVARCHAR(80) NULL,          -- Niveau 2
+    Country           NVARCHAR(80) NOT NULL,      -- Niveau 3
+    CountryCode       NVARCHAR(3) NOT NULL,       -- Code ISO (ex: FR, TN, DE)
+    Region            NVARCHAR(80) NOT NULL,      -- Niveau 4 (ex: Western Europe)
+    Continent         NVARCHAR(50) NOT NULL,      -- Niveau 5 (plus agrégé)
+    
+    -- ========== INFORMATIONS COMPLÉMENTAIRES ==========
+    PostalCode        NVARCHAR(20) NULL,
+    Latitude          DECIMAL(10,7) NULL,         -- Pour cartographie
+    Longitude         DECIMAL(10,7) NULL,         -- Pour cartographie
+    Population        INT NULL,                    -- Habitants
+    AreaKm2           DECIMAL(10,2) NULL,         -- Superficie en km²
+    
+    -- ========== SLOWLY CHANGING DIMENSION (SCD TYPE 2) ==========
+    ValidFrom         DATETIME2(0) NOT NULL DEFAULT '1900-01-01',
+    ValidTo           DATETIME2(0) NOT NULL DEFAULT '9999-12-31',
+    IsCurrent         BIT NOT NULL DEFAULT 1,
+    
+    -- ========== CONTRAINTES ==========
+    CONSTRAINT PK_DimGeography PRIMARY KEY CLUSTERED (GeographySK),
+    CONSTRAINT UQ_DimGeography_GeographyBK UNIQUE (GeographyBK)
+);
+
+PRINT '   ✓ Table DimGeography créée';
+PRINT '';
+
+/* =============================================================================
+   ÉTAPE 3 : CRÉATION DES INDEX
+   ============================================================================= */
+
+PRINT '3. Création des index de performance...';
+PRINT '';
+
+-- Index sur la clé métier
+CREATE INDEX IX_DimGeography_GeographyBK ON dbo.DimGeography(GeographyBK);
+
+-- Index sur les niveaux hiérarchiques (pour drill-down/roll-up)
+CREATE INDEX IX_DimGeography_City ON dbo.DimGeography(City);
+CREATE INDEX IX_DimGeography_Country ON dbo.DimGeography(Country);
+CREATE INDEX IX_DimGeography_Region ON dbo.DimGeography(Region);
+CREATE INDEX IX_DimGeography_Continent ON dbo.DimGeography(Continent);
+
+-- Index composite pour les requêtes hiérarchiques
+CREATE INDEX IX_DimGeography_Hierarchy 
+    ON dbo.DimGeography(Continent, Region, Country, City);
+
+PRINT '   ✓ 6 index créés';
+PRINT '';
+
+/* =============================================================================
+   ÉTAPE 4 : EXTENSION DE DimStore
+   ============================================================================= */
+
+PRINT '4. Extension de DimStore avec la colonne GeographySK...';
+PRINT '';
+
+-- Ajouter la colonne GeographySK à DimStore
+ALTER TABLE dbo.DimStore
+ADD GeographySK INT NULL;
+
+PRINT '   ✓ Colonne GeographySK ajoutée à DimStore';
+PRINT '';
+
+-- Note : La FK sera créée après le chargement des données dans 03B
+
+/* =============================================================================
+   RÉCAPITULATIF
+   ============================================================================= */
+
+PRINT '=================================================================';
+PRINT '✓✓✓ DimGeography CRÉÉE AVEC SUCCÈS ✓✓✓';
+PRINT '=================================================================';
+PRINT '';
+PRINT 'Structure créée :';
+PRINT '  ✓ Table dbo.DimGeography';
+PRINT '  ✓ Clé primaire : GeographySK';
+PRINT '  ✓ Clé métier : GeographyBK';
+PRINT '  ✓ 6 index de performance';
+PRINT '  ✓ Colonne GeographySK ajoutée à DimStore';
+PRINT '';
+PRINT 'Hiérarchie géographique :';
+PRINT '  1. City (Ville) ← Niveau le plus détaillé';
+PRINT '  2. StateProvince (État/Province)';
+PRINT '  3. Country (Pays)';
+PRINT '  4. Region (Région)';
+PRINT '  5. Continent ← Niveau le plus agrégé';
+PRINT '';
+PRINT 'Prochaine étape :';
+PRINT '  → Exécuter : 03B_LOAD_DimGeography.sql';
+PRINT '';
+
+GO

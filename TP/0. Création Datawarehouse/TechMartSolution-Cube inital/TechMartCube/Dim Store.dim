@@ -1,0 +1,356 @@
+﻿<Dimension xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:ddl2="http://schemas.microsoft.com/analysisservices/2003/engine/2" xmlns:ddl2_2="http://schemas.microsoft.com/analysisservices/2003/engine/2/2" xmlns:ddl100_100="http://schemas.microsoft.com/analysisservices/2008/engine/100/100" xmlns:ddl200="http://schemas.microsoft.com/analysisservices/2010/engine/200" xmlns:ddl200_200="http://schemas.microsoft.com/analysisservices/2010/engine/200/200" xmlns:ddl300="http://schemas.microsoft.com/analysisservices/2011/engine/300" xmlns:ddl300_300="http://schemas.microsoft.com/analysisservices/2011/engine/300/300" xmlns:ddl400="http://schemas.microsoft.com/analysisservices/2012/engine/400" xmlns:ddl400_400="http://schemas.microsoft.com/analysisservices/2012/engine/400/400" xmlns:ddl500="http://schemas.microsoft.com/analysisservices/2013/engine/500" xmlns:ddl500_500="http://schemas.microsoft.com/analysisservices/2013/engine/500/500" xmlns:dwd="http://schemas.microsoft.com/DataWarehouse/Designer/1.0" dwd:design-time-name="f213915c-19e6-47bd-a3ee-278911eb190d" xmlns="http://schemas.microsoft.com/analysisservices/2003/engine">
+  <ID>Dim Store</ID>
+  <Name>Dim Store</Name>
+  <CreatedTimestamp>0001-01-01T00:00:00Z</CreatedTimestamp>
+  <LastSchemaUpdate>0001-01-01T00:00:00Z</LastSchemaUpdate>
+  <Annotations>
+    <Annotation>
+      <Name>http://schemas.microsoft.com/DataWarehouse/Designer/1.0:DiagramLayout</Name>
+      <Value>
+        <dds xmlns="">
+          <diagram fontclsid="{0BE35203-8F91-11CE-9DE3-00AA004BB851}" mouseiconclsid="{0BE35204-8F91-11CE-9DE3-00AA004BB851}" defaultlayout="MSDDS.Rectilinear" defaultlineroute="MSDDS.Rectilinear" version="7" nextobject="2" scale="100" pagebreakanchorx="0" pagebreakanchory="0" pagebreaksizex="0" pagebreaksizey="0" scrollleft="-4406" scrolltop="-8229" gridx="150" gridy="150" marginx="5000" marginy="5000" zoom="100" x="11853" y="20814" backcolor="16777215" defaultpersistence="2" PrintPageNumbersMode="3" PrintMarginTop="0" PrintMarginBottom="635" PrintMarginLeft="0" PrintMarginRight="0" marqueeselectionmode="0" mousepointer="0" snaptogrid="0" autotypeannotation="1" showscrollbars="0" viewpagebreaks="0" donotforceconnectorsbehindshapes="1" backpictureclsid="{00000000-0000-0000-0000-000000000000}">
+            <font>
+              <ddsxmlobjectstreamwrapper binary="01000000900180380100065461686f6d61" />
+            </font>
+            <mouseicon>
+              <ddsxmlobjectstreamwrapper binary="6c74000000000000" />
+            </mouseicon>
+          </diagram>
+          <layoutmanager>
+            <ddsxmlobj />
+          </layoutmanager>
+          <ddscontrol controlprogid="DdsShapes.DdsObjectManagedBridge" tooltip="DimStore" left="20" top="0" logicalid="1" controlid="1" masterid="0" hint1="0" hint2="0" width="3000" height="4357" noresize="0" nomove="0" nodefaultattachpoints="0" autodrag="1" usedefaultiddshape="1" selectable="1" showselectionhandles="1" allownudging="1" isannotation="0" dontautolayout="0" groupcollapsed="0" tabstop="1" visible="1" snaptogrid="0">
+            <control>
+              <ddsxmlobjectstreaminitwrapper binary="000e0000b80b000005110000" />
+            </control>
+            <layoutobject>
+              <ddsxmlobj>
+                <property name="LogicalObject" value="dw_DimStore" vartype="8" />
+              </ddsxmlobj>
+            </layoutobject>
+            <shape groupshapeid="0" groupnode="0" />
+          </ddscontrol>
+        </dds>
+      </Value>
+    </Annotation>
+    <Annotation>
+      <Name>http://schemas.microsoft.com/DataWarehouse/Designer/1.0:ShowFriendlyNames</Name>
+      <Value>true</Value>
+    </Annotation>
+    <Annotation>
+      <Name>http://schemas.microsoft.com/DataWarehouse/Designer/1.0:ShowRelationshipNames</Name>
+      <Value>false</Value>
+    </Annotation>
+    <Annotation>
+      <Name>http://schemas.microsoft.com/DataWarehouse/Designer/1.0:UseDiagramDefaultLayout</Name>
+      <Value>true</Value>
+    </Annotation>
+    <Annotation>
+      <Name>http://schemas.microsoft.com/DataWarehouse/Designer/1.0:DiagramViewPortLeft</Name>
+      <Value>-4406</Value>
+    </Annotation>
+    <Annotation>
+      <Name>http://schemas.microsoft.com/DataWarehouse/Designer/1.0:DiagramViewPortTop</Name>
+      <Value>-8229</Value>
+    </Annotation>
+    <Annotation>
+      <Name>http://schemas.microsoft.com/DataWarehouse/Designer/1.0:DiagramBoundingLeft</Name>
+      <Value>20</Value>
+    </Annotation>
+    <Annotation>
+      <Name>http://schemas.microsoft.com/DataWarehouse/Designer/1.0:DiagramBoundingTop</Name>
+      <Value>0</Value>
+    </Annotation>
+    <Annotation>
+      <Name>http://schemas.microsoft.com/DataWarehouse/Designer/1.0:DiagramZoom</Name>
+      <Value>100</Value>
+    </Annotation>
+    <Annotation>
+      <Name>http://schemas.microsoft.com/DataWarehouse/Designer/1.0:ARDiagramLayout</Name>
+      <Value>
+        <DiagramLayout ZoomPercent="100" ViewPortX="0" ViewPortY="0" xmlns="">
+          <Shapes NodeWidth="163">
+            <Shape Id="Store SK" Expanded="false">
+              <Attributes>
+                <Attribute Id="Store SK" />
+                <Attribute Id="Manager Name" />
+                <Attribute Id="Opening Date" />
+                <Attribute Id="Store BK" />
+                <Attribute Id="Store Name" />
+                <Attribute Id="Store Size" />
+                <Attribute Id="Store Type" />
+              </Attributes>
+              <Position x="20" y="20" />
+            </Shape>
+            <Shape Id="City" Expanded="false">
+              <Attributes>
+                <Attribute Id="City" />
+              </Attributes>
+              <Position x="228" y="20" />
+            </Shape>
+            <Shape Id="Country" Expanded="false">
+              <Attributes>
+                <Attribute Id="Country" />
+              </Attributes>
+              <Position x="437" y="20" />
+            </Shape>
+            <Shape Id="Region" Expanded="false">
+              <Attributes>
+                <Attribute Id="Region" />
+              </Attributes>
+              <Position x="646" y="20" />
+            </Shape>
+          </Shapes>
+        </DiagramLayout>
+      </Value>
+    </Annotation>
+  </Annotations>
+  <LastProcessed>0001-01-01T00:00:00Z</LastProcessed>
+  <State>Unprocessed</State>
+  <Source xsi:type="DataSourceViewBinding" dwd:design-time-name="22ad9b05-c02b-43bf-9c09-d090148d6593">
+    <DataSourceViewID>DW</DataSourceViewID>
+  </Source>
+  <ErrorConfiguration dwd:design-time-name="81000341-ae32-44ec-9a62-050dc9c54b19">
+    <KeyNotFound>ReportAndStop</KeyNotFound>
+    <KeyDuplicate>ReportAndStop</KeyDuplicate>
+    <NullKeyNotAllowed>ReportAndStop</NullKeyNotAllowed>
+  </ErrorConfiguration>
+  <CurrentStorageMode>Molap</CurrentStorageMode>
+  <Attributes>
+    <Attribute dwd:design-time-name="ab4fc479-760a-4633-b7dd-90bcd11276cc">
+      <ID>Store SK</ID>
+      <Name>Store SK</Name>
+      <Usage>Key</Usage>
+      <KeyColumns>
+        <KeyColumn dwd:design-time-name="11a37cea-b31b-41a2-89c5-341506143ec3">
+          <DataType>Integer</DataType>
+          <Source xsi:type="ColumnBinding" dwd:design-time-name="968b1145-1720-48f9-8e25-ed80fa9879c8">
+            <TableID>dw_DimStore</TableID>
+            <ColumnID>StoreSK</ColumnID>
+          </Source>
+        </KeyColumn>
+      </KeyColumns>
+      <AttributeRelationships>
+        <AttributeRelationship dwd:design-time-name="67425ca2-2676-4a2f-b828-24ee7e81de85">
+          <AttributeID>Store BK</AttributeID>
+          <Name>Store BK</Name>
+        </AttributeRelationship>
+        <AttributeRelationship dwd:design-time-name="1edd79f1-f39d-4f41-bb57-06e3aa5d9510">
+          <AttributeID>Store Name</AttributeID>
+          <Name>Store Name</Name>
+        </AttributeRelationship>
+        <AttributeRelationship dwd:design-time-name="04a0097f-fc0c-4eeb-a69e-63c57a93822e">
+          <AttributeID>Store Type</AttributeID>
+          <Name>Store Type</Name>
+        </AttributeRelationship>
+        <AttributeRelationship dwd:design-time-name="a59705e9-3d6d-460b-9509-33bee9f9b507">
+          <AttributeID>City</AttributeID>
+          <Name>City</Name>
+        </AttributeRelationship>
+        <AttributeRelationship dwd:design-time-name="446f18a5-c62b-4488-ad3c-fbe183f493fe">
+          <AttributeID>Opening Date</AttributeID>
+          <Name>Opening Date</Name>
+        </AttributeRelationship>
+        <AttributeRelationship dwd:design-time-name="f5347bd3-8515-4fc9-ab77-b34038f0bc89">
+          <AttributeID>Store Size</AttributeID>
+          <Name>Store Size</Name>
+        </AttributeRelationship>
+        <AttributeRelationship dwd:design-time-name="e238e407-d198-4295-aa89-71c9599ef2f6">
+          <AttributeID>Manager Name</AttributeID>
+          <Name>Manager Name</Name>
+        </AttributeRelationship>
+      </AttributeRelationships>
+      <OrderBy>Key</OrderBy>
+      <ddl200:ProcessingState>Unprocessed</ddl200:ProcessingState>
+      <ddl300:AttributeHierarchyProcessingState>Unprocessed</ddl300:AttributeHierarchyProcessingState>
+    </Attribute>
+    <Attribute dwd:design-time-name="688b10a2-8cc9-4d2f-ac7e-e7417ff03e44">
+      <ID>Store BK</ID>
+      <Name>Store BK</Name>
+      <KeyColumns>
+        <KeyColumn dwd:design-time-name="73fc06ac-85a0-457d-956e-384465f1eeb8">
+          <DataType>Integer</DataType>
+          <Source xsi:type="ColumnBinding" dwd:design-time-name="caf695cf-9ffe-477b-a502-2e0e270187b3">
+            <TableID>dw_DimStore</TableID>
+            <ColumnID>StoreBK</ColumnID>
+          </Source>
+        </KeyColumn>
+      </KeyColumns>
+      <OrderBy>Key</OrderBy>
+      <ddl200:ProcessingState>Unprocessed</ddl200:ProcessingState>
+      <ddl300:AttributeHierarchyProcessingState>Unprocessed</ddl300:AttributeHierarchyProcessingState>
+    </Attribute>
+    <Attribute dwd:design-time-name="36c357a7-c59d-4e6e-abed-d5995c30136d">
+      <ID>Store Name</ID>
+      <Name>Store Name</Name>
+      <KeyColumns>
+        <KeyColumn dwd:design-time-name="f5b5d3d3-ccf3-4824-8a5a-9a874d1a0be2">
+          <DataType>WChar</DataType>
+          <DataSize>120</DataSize>
+          <Source xsi:type="ColumnBinding" dwd:design-time-name="9f2bbc9c-3c7a-425a-bf47-0f4ecfd45829">
+            <TableID>dw_DimStore</TableID>
+            <ColumnID>StoreName</ColumnID>
+          </Source>
+        </KeyColumn>
+      </KeyColumns>
+      <OrderBy>Key</OrderBy>
+      <ddl200:ProcessingState>Unprocessed</ddl200:ProcessingState>
+      <ddl300:AttributeHierarchyProcessingState>Unprocessed</ddl300:AttributeHierarchyProcessingState>
+    </Attribute>
+    <Attribute dwd:design-time-name="d06e1195-b0ff-4cff-a8b7-171dc47bf469">
+      <ID>Store Type</ID>
+      <Name>Store Type</Name>
+      <KeyColumns>
+        <KeyColumn dwd:design-time-name="bfeb90c3-3748-4c56-8514-c14065eaa1e3">
+          <DataType>WChar</DataType>
+          <DataSize>30</DataSize>
+          <Source xsi:type="ColumnBinding" dwd:design-time-name="09a7c249-0bd5-4658-9656-e3189dfe26f0">
+            <TableID>dw_DimStore</TableID>
+            <ColumnID>StoreType</ColumnID>
+          </Source>
+        </KeyColumn>
+      </KeyColumns>
+      <OrderBy>Key</OrderBy>
+      <ddl200:ProcessingState>Unprocessed</ddl200:ProcessingState>
+      <ddl300:AttributeHierarchyProcessingState>Unprocessed</ddl300:AttributeHierarchyProcessingState>
+    </Attribute>
+    <Attribute dwd:design-time-name="ebe0c7b7-c116-4e1f-89bf-b38c059a1972">
+      <ID>City</ID>
+      <Name>City</Name>
+      <KeyColumns>
+        <KeyColumn dwd:design-time-name="f8a135d2-38c9-408d-9ad3-4cb349a052c1">
+          <DataType>WChar</DataType>
+          <DataSize>80</DataSize>
+          <Source xsi:type="ColumnBinding" dwd:design-time-name="2046dfb0-766e-4a92-8582-64e7cd3932e6">
+            <TableID>dw_DimStore</TableID>
+            <ColumnID>City</ColumnID>
+          </Source>
+        </KeyColumn>
+      </KeyColumns>
+      <AttributeRelationships>
+        <AttributeRelationship dwd:design-time-name="c6f05cca-ea07-4bc3-ac4b-2cb7e2ce0b27">
+          <AttributeID>Country</AttributeID>
+          <RelationshipType>Rigid</RelationshipType>
+          <Name>Country</Name>
+        </AttributeRelationship>
+      </AttributeRelationships>
+      <OrderBy>Key</OrderBy>
+      <ddl200:ProcessingState>Unprocessed</ddl200:ProcessingState>
+      <ddl300:AttributeHierarchyProcessingState>Unprocessed</ddl300:AttributeHierarchyProcessingState>
+    </Attribute>
+    <Attribute dwd:design-time-name="8d6107c1-048e-45c4-815c-9323e20347e0">
+      <ID>Country</ID>
+      <Name>Country</Name>
+      <KeyColumns>
+        <KeyColumn dwd:design-time-name="765a0a78-803e-4d29-ae91-889e694c52bf">
+          <DataType>WChar</DataType>
+          <DataSize>80</DataSize>
+          <Source xsi:type="ColumnBinding" dwd:design-time-name="870d81ad-c2cc-4d91-8433-29e1f8ab0d39">
+            <TableID>dw_DimStore</TableID>
+            <ColumnID>Country</ColumnID>
+          </Source>
+        </KeyColumn>
+      </KeyColumns>
+      <AttributeRelationships>
+        <AttributeRelationship dwd:design-time-name="27b03045-0553-4c7e-9e5f-2e4a5d2607e8">
+          <AttributeID>Region</AttributeID>
+          <RelationshipType>Rigid</RelationshipType>
+          <Name>Region</Name>
+        </AttributeRelationship>
+      </AttributeRelationships>
+      <OrderBy>Key</OrderBy>
+      <ddl200:ProcessingState>Unprocessed</ddl200:ProcessingState>
+      <ddl300:AttributeHierarchyProcessingState>Unprocessed</ddl300:AttributeHierarchyProcessingState>
+    </Attribute>
+    <Attribute dwd:design-time-name="cfed486e-2292-445b-a036-0b4fbe68b17b">
+      <ID>Region</ID>
+      <Name>Region</Name>
+      <KeyColumns>
+        <KeyColumn dwd:design-time-name="d3611693-2709-4611-8878-8708bd28c53b">
+          <DataType>WChar</DataType>
+          <DataSize>80</DataSize>
+          <Source xsi:type="ColumnBinding" dwd:design-time-name="bc254516-dc78-4353-b02e-217d4b9b27a7">
+            <TableID>dw_DimStore</TableID>
+            <ColumnID>Region</ColumnID>
+          </Source>
+        </KeyColumn>
+      </KeyColumns>
+      <OrderBy>Key</OrderBy>
+      <ddl200:ProcessingState>Unprocessed</ddl200:ProcessingState>
+      <ddl300:AttributeHierarchyProcessingState>Unprocessed</ddl300:AttributeHierarchyProcessingState>
+    </Attribute>
+    <Attribute dwd:design-time-name="560587c9-02b6-4842-8444-d218c3501252">
+      <ID>Opening Date</ID>
+      <Name>Opening Date</Name>
+      <KeyColumns>
+        <KeyColumn dwd:design-time-name="db0faee4-6cc5-45ec-9da0-71ac3509825b">
+          <DataType>Date</DataType>
+          <Source xsi:type="ColumnBinding" dwd:design-time-name="57215782-a4dc-4339-9ca5-fb54613f18e7">
+            <TableID>dw_DimStore</TableID>
+            <ColumnID>OpeningDate</ColumnID>
+          </Source>
+        </KeyColumn>
+      </KeyColumns>
+      <OrderBy>Key</OrderBy>
+      <ddl200:ProcessingState>Unprocessed</ddl200:ProcessingState>
+      <ddl300:AttributeHierarchyProcessingState>Unprocessed</ddl300:AttributeHierarchyProcessingState>
+    </Attribute>
+    <Attribute dwd:design-time-name="30713b13-c223-4c9c-9819-10d878956640">
+      <ID>Store Size</ID>
+      <Name>Store Size</Name>
+      <KeyColumns>
+        <KeyColumn dwd:design-time-name="87be7242-4a30-4185-8725-81c310fbba38">
+          <DataType>Integer</DataType>
+          <Source xsi:type="ColumnBinding" dwd:design-time-name="841d75bd-a9c2-4799-9003-5aac259f7f86">
+            <TableID>dw_DimStore</TableID>
+            <ColumnID>StoreSize</ColumnID>
+          </Source>
+        </KeyColumn>
+      </KeyColumns>
+      <OrderBy>Key</OrderBy>
+      <ddl200:ProcessingState>Unprocessed</ddl200:ProcessingState>
+      <ddl300:AttributeHierarchyProcessingState>Unprocessed</ddl300:AttributeHierarchyProcessingState>
+    </Attribute>
+    <Attribute dwd:design-time-name="daf4af1d-9093-4d11-ad81-195e734dbecd">
+      <ID>Manager Name</ID>
+      <Name>Manager Name</Name>
+      <KeyColumns>
+        <KeyColumn dwd:design-time-name="86e3f177-187e-41c1-98c2-28b6cc45488b">
+          <DataType>WChar</DataType>
+          <DataSize>100</DataSize>
+          <Source xsi:type="ColumnBinding" dwd:design-time-name="6701b91e-660d-49ba-bdc8-729a6d7b5ab9">
+            <TableID>dw_DimStore</TableID>
+            <ColumnID>ManagerName</ColumnID>
+          </Source>
+        </KeyColumn>
+      </KeyColumns>
+      <OrderBy>Key</OrderBy>
+      <ddl200:ProcessingState>Unprocessed</ddl200:ProcessingState>
+      <ddl300:AttributeHierarchyProcessingState>Unprocessed</ddl300:AttributeHierarchyProcessingState>
+    </Attribute>
+  </Attributes>
+  <Hierarchies>
+    <Hierarchy dwd:design-time-name="0ab69398-76d1-4e2c-8f85-58ab624e8704">
+      <ID>Hiérarchie</ID>
+      <Name>Store Hiérarchie</Name>
+      <Levels>
+        <Level dwd:design-time-name="43c2689d-008a-40ac-92e7-74388435f449">
+          <ID>Region</ID>
+          <Name>Region</Name>
+          <SourceAttributeID>Region</SourceAttributeID>
+        </Level>
+        <Level dwd:design-time-name="f0ec0b77-9ec2-4e9e-a734-f5837b1cf4f3">
+          <ID>Country</ID>
+          <Name>Country</Name>
+          <SourceAttributeID>Country</SourceAttributeID>
+        </Level>
+        <Level dwd:design-time-name="f12dd079-8ce1-42ac-be5e-f2430f8968a9">
+          <ID>City</ID>
+          <Name>City</Name>
+          <SourceAttributeID>City</SourceAttributeID>
+        </Level>
+      </Levels>
+    </Hierarchy>
+  </Hierarchies>
+  <ddl300:ProcessingState>Unprocessed</ddl300:ProcessingState>
+</Dimension>

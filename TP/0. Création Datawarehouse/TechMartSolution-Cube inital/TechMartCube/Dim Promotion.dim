@@ -1,0 +1,280 @@
+﻿<Dimension xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:ddl2="http://schemas.microsoft.com/analysisservices/2003/engine/2" xmlns:ddl2_2="http://schemas.microsoft.com/analysisservices/2003/engine/2/2" xmlns:ddl100_100="http://schemas.microsoft.com/analysisservices/2008/engine/100/100" xmlns:ddl200="http://schemas.microsoft.com/analysisservices/2010/engine/200" xmlns:ddl200_200="http://schemas.microsoft.com/analysisservices/2010/engine/200/200" xmlns:ddl300="http://schemas.microsoft.com/analysisservices/2011/engine/300" xmlns:ddl300_300="http://schemas.microsoft.com/analysisservices/2011/engine/300/300" xmlns:ddl400="http://schemas.microsoft.com/analysisservices/2012/engine/400" xmlns:ddl400_400="http://schemas.microsoft.com/analysisservices/2012/engine/400/400" xmlns:ddl500="http://schemas.microsoft.com/analysisservices/2013/engine/500" xmlns:ddl500_500="http://schemas.microsoft.com/analysisservices/2013/engine/500/500" xmlns:dwd="http://schemas.microsoft.com/DataWarehouse/Designer/1.0" dwd:design-time-name="66a863d2-f58e-4450-9adf-5097e3c2b229" xmlns="http://schemas.microsoft.com/analysisservices/2003/engine">
+  <ID>Dim Promotion</ID>
+  <Name>Dim Promotion</Name>
+  <CreatedTimestamp>0001-01-01T00:00:00Z</CreatedTimestamp>
+  <LastSchemaUpdate>0001-01-01T00:00:00Z</LastSchemaUpdate>
+  <Annotations>
+    <Annotation>
+      <Name>http://schemas.microsoft.com/DataWarehouse/Designer/1.0:DiagramLayout</Name>
+    </Annotation>
+    <Annotation>
+      <Name>http://schemas.microsoft.com/DataWarehouse/Designer/1.0:ShowFriendlyNames</Name>
+      <Value>true</Value>
+    </Annotation>
+    <Annotation>
+      <Name>http://schemas.microsoft.com/DataWarehouse/Designer/1.0:ShowRelationshipNames</Name>
+      <Value>false</Value>
+    </Annotation>
+    <Annotation>
+      <Name>http://schemas.microsoft.com/DataWarehouse/Designer/1.0:UseDiagramDefaultLayout</Name>
+      <Value>true</Value>
+    </Annotation>
+    <Annotation>
+      <Name>http://schemas.microsoft.com/DataWarehouse/Designer/1.0:DiagramViewPortLeft</Name>
+      <Value>0</Value>
+    </Annotation>
+    <Annotation>
+      <Name>http://schemas.microsoft.com/DataWarehouse/Designer/1.0:DiagramViewPortTop</Name>
+      <Value>0</Value>
+    </Annotation>
+    <Annotation>
+      <Name>http://schemas.microsoft.com/DataWarehouse/Designer/1.0:DiagramBoundingLeft</Name>
+      <Value>0</Value>
+    </Annotation>
+    <Annotation>
+      <Name>http://schemas.microsoft.com/DataWarehouse/Designer/1.0:DiagramBoundingTop</Name>
+      <Value>0</Value>
+    </Annotation>
+    <Annotation>
+      <Name>http://schemas.microsoft.com/DataWarehouse/Designer/1.0:DiagramZoom</Name>
+      <Value>100</Value>
+    </Annotation>
+  </Annotations>
+  <LastProcessed>0001-01-01T00:00:00Z</LastProcessed>
+  <State>Unprocessed</State>
+  <Source xsi:type="DataSourceViewBinding" dwd:design-time-name="738ff657-82a5-494c-8518-03ef797e2e47">
+    <DataSourceViewID>DW</DataSourceViewID>
+  </Source>
+  <ErrorConfiguration dwd:design-time-name="6417f005-8c2f-4c2e-9728-2573004842eb">
+    <KeyNotFound>ReportAndStop</KeyNotFound>
+    <KeyDuplicate>ReportAndStop</KeyDuplicate>
+    <NullKeyNotAllowed>ReportAndStop</NullKeyNotAllowed>
+  </ErrorConfiguration>
+  <CurrentStorageMode>Molap</CurrentStorageMode>
+  <Attributes>
+    <Attribute dwd:design-time-name="c76a9bd4-095a-49ca-b537-785da83a5e2b">
+      <ID>Promotion SK</ID>
+      <Name>Promotion SK</Name>
+      <Usage>Key</Usage>
+      <KeyColumns>
+        <KeyColumn dwd:design-time-name="7831db89-de60-4b51-be0d-0eeb90848778">
+          <DataType>Integer</DataType>
+          <Source xsi:type="ColumnBinding" dwd:design-time-name="0b7294e1-236d-489d-9cd1-2fcbdd645981">
+            <TableID>dw_DimPromotion</TableID>
+            <ColumnID>PromotionSK</ColumnID>
+          </Source>
+        </KeyColumn>
+      </KeyColumns>
+      <AttributeRelationships>
+        <AttributeRelationship dwd:design-time-name="9c8bb193-cf2e-459c-bbed-af4f8f121399">
+          <AttributeID>Promotion BK</AttributeID>
+          <Name>Promotion BK</Name>
+        </AttributeRelationship>
+        <AttributeRelationship dwd:design-time-name="43f50b14-9d88-4021-80c9-2cb966a34f58">
+          <AttributeID>Promotion Name</AttributeID>
+          <Name>Promotion Name</Name>
+        </AttributeRelationship>
+        <AttributeRelationship dwd:design-time-name="14c5b9fb-1ac0-4626-aebd-20426c49ea97">
+          <AttributeID>Promotion Type</AttributeID>
+          <Name>Promotion Type</Name>
+        </AttributeRelationship>
+        <AttributeRelationship dwd:design-time-name="1a387019-18ef-442a-99e6-cc5d14a0ddd6">
+          <AttributeID>Discount Percent</AttributeID>
+          <Name>Discount Percent</Name>
+        </AttributeRelationship>
+        <AttributeRelationship dwd:design-time-name="d7e8c634-937e-48f8-ac80-005706358670">
+          <AttributeID>Start Date</AttributeID>
+          <Name>Start Date</Name>
+        </AttributeRelationship>
+        <AttributeRelationship dwd:design-time-name="0f77a090-1007-4731-84ee-449141439ce6">
+          <AttributeID>End Date</AttributeID>
+          <Name>End Date</Name>
+        </AttributeRelationship>
+        <AttributeRelationship dwd:design-time-name="7b28822e-5c95-4ae3-ac9a-37e93f8ee46a">
+          <AttributeID>Min Purchase Amount</AttributeID>
+          <Name>Min Purchase Amount</Name>
+        </AttributeRelationship>
+        <AttributeRelationship dwd:design-time-name="170f4228-c7b3-4127-9289-00cdd56a71b6">
+          <AttributeID>Max Discount Amount</AttributeID>
+          <Name>Max Discount Amount</Name>
+        </AttributeRelationship>
+        <AttributeRelationship dwd:design-time-name="20b54d33-3cf4-4d46-85d8-0b102a1d0421">
+          <AttributeID>Target Category</AttributeID>
+          <Name>Target Category</Name>
+        </AttributeRelationship>
+        <AttributeRelationship dwd:design-time-name="b2c61cfc-4439-4995-a0c3-550f78e3343e">
+          <AttributeID>Target Segment</AttributeID>
+          <Name>Target Segment</Name>
+        </AttributeRelationship>
+      </AttributeRelationships>
+      <OrderBy>Key</OrderBy>
+      <ddl200:ProcessingState>Unprocessed</ddl200:ProcessingState>
+      <ddl300:AttributeHierarchyProcessingState>Unprocessed</ddl300:AttributeHierarchyProcessingState>
+    </Attribute>
+    <Attribute dwd:design-time-name="fbdf0fec-1837-4740-9c22-acda9ab0e7ac">
+      <ID>Promotion BK</ID>
+      <Name>Promotion BK</Name>
+      <KeyColumns>
+        <KeyColumn dwd:design-time-name="29b34f5a-9a14-4087-93b4-30f0a4c04344">
+          <DataType>Integer</DataType>
+          <Source xsi:type="ColumnBinding" dwd:design-time-name="ed8654f7-8c58-4def-b9ab-59e4387c547c">
+            <TableID>dw_DimPromotion</TableID>
+            <ColumnID>PromotionBK</ColumnID>
+          </Source>
+        </KeyColumn>
+      </KeyColumns>
+      <OrderBy>Key</OrderBy>
+      <ddl200:ProcessingState>Unprocessed</ddl200:ProcessingState>
+      <ddl300:AttributeHierarchyProcessingState>Unprocessed</ddl300:AttributeHierarchyProcessingState>
+    </Attribute>
+    <Attribute dwd:design-time-name="52d8443d-ed65-47c0-8079-d69792d65bd4">
+      <ID>Promotion Name</ID>
+      <Name>Promotion Name</Name>
+      <KeyColumns>
+        <KeyColumn dwd:design-time-name="1154e207-5695-47b7-8cac-a2f14e44f076">
+          <DataType>WChar</DataType>
+          <DataSize>100</DataSize>
+          <Source xsi:type="ColumnBinding" dwd:design-time-name="6da601f7-09e6-417a-83e2-156a633fe05c">
+            <TableID>dw_DimPromotion</TableID>
+            <ColumnID>PromotionName</ColumnID>
+          </Source>
+        </KeyColumn>
+      </KeyColumns>
+      <OrderBy>Key</OrderBy>
+      <ddl200:ProcessingState>Unprocessed</ddl200:ProcessingState>
+      <ddl300:AttributeHierarchyProcessingState>Unprocessed</ddl300:AttributeHierarchyProcessingState>
+    </Attribute>
+    <Attribute dwd:design-time-name="91ddcb96-8121-4f10-9382-00c4cdc92592">
+      <ID>Promotion Type</ID>
+      <Name>Promotion Type</Name>
+      <KeyColumns>
+        <KeyColumn dwd:design-time-name="fa4ef261-bb69-40cd-aa8a-a2441437bd33">
+          <DataType>WChar</DataType>
+          <DataSize>50</DataSize>
+          <Source xsi:type="ColumnBinding" dwd:design-time-name="46b49a5b-3063-42d7-9b5e-9d107bbb80f8">
+            <TableID>dw_DimPromotion</TableID>
+            <ColumnID>PromotionType</ColumnID>
+          </Source>
+        </KeyColumn>
+      </KeyColumns>
+      <OrderBy>Key</OrderBy>
+      <ddl200:ProcessingState>Unprocessed</ddl200:ProcessingState>
+      <ddl300:AttributeHierarchyProcessingState>Unprocessed</ddl300:AttributeHierarchyProcessingState>
+    </Attribute>
+    <Attribute dwd:design-time-name="96c4ca68-11dc-4bd9-98e5-d4f61cd354ad">
+      <ID>Discount Percent</ID>
+      <Name>Discount Percent</Name>
+      <KeyColumns>
+        <KeyColumn dwd:design-time-name="d5da1a46-81fc-4e2e-b6d6-909e7c63657c">
+          <DataType>Double</DataType>
+          <Source xsi:type="ColumnBinding" dwd:design-time-name="d971bde2-32f7-4150-a7a8-7516693f0a0c">
+            <TableID>dw_DimPromotion</TableID>
+            <ColumnID>DiscountPercent</ColumnID>
+          </Source>
+        </KeyColumn>
+      </KeyColumns>
+      <OrderBy>Key</OrderBy>
+      <ddl200:ProcessingState>Unprocessed</ddl200:ProcessingState>
+      <ddl300:AttributeHierarchyProcessingState>Unprocessed</ddl300:AttributeHierarchyProcessingState>
+    </Attribute>
+    <Attribute dwd:design-time-name="9776baab-3d36-4dee-9d61-ebccf49c9665">
+      <ID>Start Date</ID>
+      <Name>Start Date</Name>
+      <KeyColumns>
+        <KeyColumn dwd:design-time-name="270d3793-1d62-4edd-a945-e5702370eddf">
+          <DataType>Date</DataType>
+          <Source xsi:type="ColumnBinding" dwd:design-time-name="bf41aaed-a254-4739-9eb2-7b20917ef4a9">
+            <TableID>dw_DimPromotion</TableID>
+            <ColumnID>StartDate</ColumnID>
+          </Source>
+        </KeyColumn>
+      </KeyColumns>
+      <OrderBy>Key</OrderBy>
+      <ddl200:ProcessingState>Unprocessed</ddl200:ProcessingState>
+      <ddl300:AttributeHierarchyProcessingState>Unprocessed</ddl300:AttributeHierarchyProcessingState>
+    </Attribute>
+    <Attribute dwd:design-time-name="2f541bbd-d994-4cde-9d55-8f9bbc165024">
+      <ID>End Date</ID>
+      <Name>End Date</Name>
+      <KeyColumns>
+        <KeyColumn dwd:design-time-name="0d0e1959-9b2d-4b50-b885-9c70ad2f82eb">
+          <DataType>Date</DataType>
+          <Source xsi:type="ColumnBinding" dwd:design-time-name="e3224767-45b0-47e8-bae7-745030968c24">
+            <TableID>dw_DimPromotion</TableID>
+            <ColumnID>EndDate</ColumnID>
+          </Source>
+        </KeyColumn>
+      </KeyColumns>
+      <OrderBy>Key</OrderBy>
+      <ddl200:ProcessingState>Unprocessed</ddl200:ProcessingState>
+      <ddl300:AttributeHierarchyProcessingState>Unprocessed</ddl300:AttributeHierarchyProcessingState>
+    </Attribute>
+    <Attribute dwd:design-time-name="c970c6d3-140f-4cd1-8e1e-b7d97a4df2c3">
+      <ID>Min Purchase Amount</ID>
+      <Name>Min Purchase Amount</Name>
+      <KeyColumns>
+        <KeyColumn dwd:design-time-name="4ee87540-c7e4-455d-8d7c-7ed4789fe101">
+          <DataType>Double</DataType>
+          <Source xsi:type="ColumnBinding" dwd:design-time-name="25afd5e2-ed57-4c2d-8042-921dd47520c6">
+            <TableID>dw_DimPromotion</TableID>
+            <ColumnID>MinPurchaseAmount</ColumnID>
+          </Source>
+        </KeyColumn>
+      </KeyColumns>
+      <OrderBy>Key</OrderBy>
+      <ddl200:ProcessingState>Unprocessed</ddl200:ProcessingState>
+      <ddl300:AttributeHierarchyProcessingState>Unprocessed</ddl300:AttributeHierarchyProcessingState>
+    </Attribute>
+    <Attribute dwd:design-time-name="b5360f17-912a-48d7-8f10-36e03d08cc8a">
+      <ID>Max Discount Amount</ID>
+      <Name>Max Discount Amount</Name>
+      <KeyColumns>
+        <KeyColumn dwd:design-time-name="a1721f82-3901-46d3-b385-cee20bc08808">
+          <DataType>Double</DataType>
+          <Source xsi:type="ColumnBinding" dwd:design-time-name="caf42a5f-7089-4a5d-b0a2-3f3842105685">
+            <TableID>dw_DimPromotion</TableID>
+            <ColumnID>MaxDiscountAmount</ColumnID>
+          </Source>
+        </KeyColumn>
+      </KeyColumns>
+      <OrderBy>Key</OrderBy>
+      <ddl200:ProcessingState>Unprocessed</ddl200:ProcessingState>
+      <ddl300:AttributeHierarchyProcessingState>Unprocessed</ddl300:AttributeHierarchyProcessingState>
+    </Attribute>
+    <Attribute dwd:design-time-name="d901b938-dbef-4a07-928d-008f35160641">
+      <ID>Target Category</ID>
+      <Name>Target Category</Name>
+      <KeyColumns>
+        <KeyColumn dwd:design-time-name="e0f022e8-3770-4e0a-9dbb-c72d0ff67589">
+          <DataType>WChar</DataType>
+          <DataSize>80</DataSize>
+          <Source xsi:type="ColumnBinding" dwd:design-time-name="585c6119-254f-49cd-a8d9-69592f786e24">
+            <TableID>dw_DimPromotion</TableID>
+            <ColumnID>TargetCategory</ColumnID>
+          </Source>
+        </KeyColumn>
+      </KeyColumns>
+      <OrderBy>Key</OrderBy>
+      <ddl200:ProcessingState>Unprocessed</ddl200:ProcessingState>
+      <ddl300:AttributeHierarchyProcessingState>Unprocessed</ddl300:AttributeHierarchyProcessingState>
+    </Attribute>
+    <Attribute dwd:design-time-name="c8e0ffba-fd26-49ac-a188-98e54d602aa0">
+      <ID>Target Segment</ID>
+      <Name>Target Segment</Name>
+      <KeyColumns>
+        <KeyColumn dwd:design-time-name="69c4c62a-28e0-49e5-95d1-4ccf4c73db94">
+          <DataType>WChar</DataType>
+          <DataSize>20</DataSize>
+          <Source xsi:type="ColumnBinding" dwd:design-time-name="e5f0f6a6-d1cc-482c-b995-e8c5fc1079e8">
+            <TableID>dw_DimPromotion</TableID>
+            <ColumnID>TargetSegment</ColumnID>
+          </Source>
+        </KeyColumn>
+      </KeyColumns>
+      <OrderBy>Key</OrderBy>
+      <ddl200:ProcessingState>Unprocessed</ddl200:ProcessingState>
+      <ddl300:AttributeHierarchyProcessingState>Unprocessed</ddl300:AttributeHierarchyProcessingState>
+    </Attribute>
+  </Attributes>
+  <ddl300:ProcessingState>Unprocessed</ddl300:ProcessingState>
+</Dimension>

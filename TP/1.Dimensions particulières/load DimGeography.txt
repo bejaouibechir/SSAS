@@ -1,0 +1,411 @@
+/* =============================================================================
+   03B_LOAD_DimGeography.sql
+   
+   CHARGEMENT DimGeography ET LIAISON AVEC DimStore
+   
+   Ce script :
+   1. Charge les données géographiques des 5 magasins
+   2. Lie DimStore à DimGeography (relation snowflake)
+   3. Crée la contrainte FK entre les deux dimensions
+   
+   DONNÉES CHARGÉES :
+   ------------------
+   - Tunis, Tunisia (North Africa)
+   - Paris, France (Western Europe)
+   - Berlin, Germany (Central Europe)
+   - Casablanca, Morocco (North Africa)
+   - Lyon, France (Western Europe)
+   
+   RÉSULTAT :
+   ----------
+   Transformation de Star Schema → Snowflake Schema
+   
+   AVANT :
+   FactProductSales → DimStore (avec City, Country, Region dupliqués)
+   
+   APRÈS :
+   FactProductSales → DimStore → DimGeography (normalisé)
+   
+   Prérequis :
+   - 03A_CREATE_DimGeography.sql exécuté
+   - DimStore contient déjà les 5 magasins
+   
+   Durée : < 5 secondes
+   
+   ============================================================================= */
+
+USE dbo;
+GO
+
+SET NOCOUNT ON;
+GO
+
+PRINT '=================================================================';
+PRINT 'CHARGEMENT DimGeography';
+PRINT '=================================================================';
+PRINT '';
+
+/* =============================================================================
+   ÉTAPE 1 : VÉRIFICATIONS PRÉALABLES
+   ============================================================================= */
+
+PRINT '1. Vérifications...';
+PRINT '';
+
+-- Vérifier que DimGeography existe
+IF OBJECT_ID('dbo.DimGeography', 'U') IS NULL
+BEGIN
+    PRINT '✗ ERREUR : DimGeography n''existe pas !';
+    PRINT '  → Exécutez d''abord : 03A_CREATE_DimGeography.sql';
+    PRINT '';
+    RETURN;
+END;
+
+PRINT '   ✓ DimGeography existe';
+
+-- Vérifier que DimStore existe et contient des données
+DECLARE @StoreCount INT;
+SELECT @StoreCount = COUNT(*) FROM dbo.DimStore;
+
+IF @StoreCount = 0
+BEGIN
+    PRINT '✗ ERREUR : DimStore est vide !';
+    PRINT '  → Exécutez d''abord : 02A_LOAD_Dimensions.sql';
+    PRINT '';
+    RETURN;
+END;
+
+PRINT '   ✓ DimStore contient ' + CAST(@StoreCount AS VARCHAR) + ' magasins';
+
+-- Vérifier que la colonne GeographySK existe dans DimStore
+IF NOT EXISTS (SELECT 1 FROM sys.columns 
+               WHERE object_id = OBJECT_ID('dbo.DimStore') AND name = 'GeographySK')
+BEGIN
+    PRINT '✗ ERREUR : Colonne GeographySK manquante dans DimStore !';
+    PRINT '  → Exécutez d''abord : 03A_CREATE_DimGeography.sql';
+    PRINT '';
+    RETURN;
+END;
+
+PRINT '   ✓ Colonne GeographySK présente dans DimStore';
+
+-- Vérifier si DimGeography contient déjà des données
+DECLARE @ExistingGeoCount INT;
+SELECT @ExistingGeoCount = COUNT(*) FROM dbo.DimGeography;
+
+IF @ExistingGeoCount > 0
+BEGIN
+    PRINT '';
+    PRINT '   ⚠️  DimGeography contient déjà ' + CAST(@ExistingGeoCount AS VARCHAR) + ' enregistrements';
+    PRINT '   Suppression des données existantes...';
+    TRUNCATE TABLE dbo.DimGeography;
+    PRINT '   ✓ Données supprimées';
+END;
+
+PRINT '';
+
+/* =============================================================================
+   ÉTAPE 2 : CHARGEMENT DES DONNÉES GÉOGRAPHIQUES
+   ============================================================================= */
+
+PRINT '2. Chargement des géographies...';
+PRINT '';
+
+INSERT INTO dbo.DimGeography (
+    GeographyBK,
+    City,
+    StateProvince,
+    Country,
+    CountryCode,
+    Region,
+    Continent,
+    PostalCode,
+    Latitude,
+    Longitude,
+    Population,
+    AreaKm2,
+    ValidFrom,
+    ValidTo,
+    IsCurrent
+)
+VALUES
+-- ========== AFRIQUE DU NORD ==========
+
+-- Tunis, Tunisia
+(
+    1,                              -- GeographyBK
+    'Tunis',                        -- City
+    'Tunis',                        -- StateProvince
+    'Tunisia',                      -- Country
+    'TN',                           -- CountryCode (ISO 3166-1)
+    'North Africa',                 -- Region
+    'Africa',                       -- Continent
+    '1000',                         -- PostalCode
+    36.8065,                        -- Latitude
+    10.1815,                        -- Longitude
+    2700000,                        -- Population (aire urbaine)
+    346,                            -- AreaKm2
+    '1900-01-01',                   -- ValidFrom
+    '9999-12-31',                   -- ValidTo
+    1                               -- IsCurrent
+),
+
+-- Casablanca, Morocco
+(
+    4,
+    'Casablanca',
+    'Casablanca-Settat',
+    'Morocco',
+    'MA',
+    'North Africa',
+    'Africa',
+    '20000',
+    33.5731,
+    -7.5898,
+    4300000,
+    220,
+    '1900-01-01',
+    '9999-12-31',
+    1
+),
+
+-- ========== EUROPE OCCIDENTALE ==========
+
+-- Paris, France
+(
+    2,
+    'Paris',
+    'Île-de-France',
+    'France',
+    'FR',
+    'Western Europe',
+    'Europe',
+    '75001',
+    48.8566,
+    2.3522,
+    12500000,                       -- Population (aire urbaine)
+    2845,                           -- AreaKm2 (aire urbaine)
+    '1900-01-01',
+    '9999-12-31',
+    1
+),
+
+-- Lyon, France
+(
+    5,
+    'Lyon',
+    'Auvergne-Rhône-Alpes',
+    'France',
+    'FR',
+    'Western Europe',
+    'Europe',
+    '69001',
+    45.7640,
+    4.8357,
+    2300000,
+    536,
+    '1900-01-01',
+    '9999-12-31',
+    1
+),
+
+-- ========== EUROPE CENTRALE ==========
+
+-- Berlin, Germany
+(
+    3,
+    'Berlin',
+    'Berlin',
+    'Germany',
+    'DE',
+    'Central Europe',
+    'Europe',
+    '10115',
+    52.5200,
+    13.4050,
+    3800000,
+    891,
+    '1900-01-01',
+    '9999-12-31',
+    1
+);
+
+DECLARE @GeoCount INT;
+SELECT @GeoCount = COUNT(*) FROM dbo.DimGeography;
+
+PRINT '   ✓ ' + CAST(@GeoCount AS VARCHAR) + ' géographies chargées';
+PRINT '';
+
+/* =============================================================================
+   ÉTAPE 3 : LIAISON DimStore → DimGeography
+   ============================================================================= */
+
+PRINT '3. Liaison des magasins aux géographies...';
+PRINT '';
+
+-- Mettre à jour DimStore avec les clés géographiques
+UPDATE s
+SET s.GeographySK = g.GeographySK
+FROM dbo.DimStore s
+INNER JOIN dbo.DimGeography g 
+    ON s.City = g.City 
+    AND s.Country = g.Country;
+
+-- Vérifier que tous les magasins sont liés
+DECLARE @LinkedStores INT;
+SELECT @LinkedStores = COUNT(*) 
+FROM dbo.DimStore 
+WHERE GeographySK IS NOT NULL;
+
+PRINT '   ✓ ' + CAST(@LinkedStores AS VARCHAR) + '/' + CAST(@StoreCount AS VARCHAR) + ' magasins liés';
+
+-- Alerter si des magasins ne sont pas liés
+IF @LinkedStores < @StoreCount
+BEGIN
+    PRINT '';
+    PRINT '   ⚠️  ATTENTION : Certains magasins ne sont pas liés !';
+    PRINT '';
+    PRINT '   Magasins non liés :';
+    
+    SELECT 
+        StoreBK,
+        StoreName,
+        City,
+        Country
+    FROM dbo.DimStore
+    WHERE GeographySK IS NULL;
+    
+    PRINT '';
+END;
+
+PRINT '';
+
+/* =============================================================================
+   ÉTAPE 4 : CRÉATION DE LA CONTRAINTE FK
+   ============================================================================= */
+
+PRINT '4. Création de la contrainte Foreign Key...';
+PRINT '';
+
+-- Vérifier si la FK existe déjà
+IF EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_DimStore_DimGeography')
+BEGIN
+    PRINT '   ⚠️  La contrainte FK existe déjà';
+    ALTER TABLE dbo.DimStore DROP CONSTRAINT FK_DimStore_DimGeography;
+    PRINT '   ✓ Ancienne contrainte supprimée';
+END;
+
+-- Créer la contrainte FK
+ALTER TABLE dbo.DimStore
+ADD CONSTRAINT FK_DimStore_DimGeography 
+    FOREIGN KEY (GeographySK) 
+    REFERENCES dbo.DimGeography(GeographySK);
+
+PRINT '   ✓ Contrainte FK_DimStore_DimGeography créée';
+PRINT '';
+
+/* =============================================================================
+   ÉTAPE 5 : CRÉATION DE L'INDEX
+   ============================================================================= */
+
+PRINT '5. Création de l''index sur GeographySK...';
+PRINT '';
+
+-- Vérifier si l'index existe déjà
+IF EXISTS (SELECT 1 FROM sys.indexes 
+           WHERE name = 'IX_DimStore_GeographySK' 
+           AND object_id = OBJECT_ID('dbo.DimStore'))
+BEGIN
+    DROP INDEX IX_DimStore_GeographySK ON dbo.DimStore;
+    PRINT '   ⚠️  Ancien index supprimé';
+END;
+
+-- Créer l'index
+CREATE INDEX IX_DimStore_GeographySK ON dbo.DimStore(GeographySK);
+
+PRINT '   ✓ Index IX_DimStore_GeographySK créé';
+PRINT '';
+
+/* =============================================================================
+   VALIDATION ET STATISTIQUES
+   ============================================================================= */
+
+PRINT '=================================================================';
+PRINT 'VALIDATION';
+PRINT '=================================================================';
+PRINT '';
+
+-- Statistiques par continent
+PRINT '--- Répartition par Continent ---';
+PRINT '';
+
+SELECT 
+    g.Continent,
+    g.Region,
+    COUNT(s.StoreSK) AS [Nombre de magasins]
+FROM dbo.DimGeography g
+LEFT JOIN dbo.DimStore s ON g.GeographySK = s.GeographySK
+GROUP BY g.Continent, g.Region
+ORDER BY g.Continent, g.Region;
+
+PRINT '';
+
+-- Détail par magasin
+PRINT '--- Détail Store → Geography ---';
+PRINT '';
+
+SELECT 
+    s.StoreName AS [Magasin],
+    s.City AS [Ville (Store)],
+    g.City AS [Ville (Geo)],
+    g.StateProvince AS [Province],
+    g.Country AS [Pays],
+    g.CountryCode AS [Code],
+    g.Region AS [Région],
+    g.Continent AS [Continent],
+    FORMAT(g.Population, 'N0') AS [Population],
+    CAST(g.AreaKm2 AS VARCHAR) + ' km²' AS [Superficie]
+FROM dbo.DimStore s
+INNER JOIN dbo.DimGeography g ON s.GeographySK = g.GeographySK
+ORDER BY g.Continent, g.Country, g.City;
+
+PRINT '';
+
+/* =============================================================================
+   RÉCAPITULATIF
+   ============================================================================= */
+
+PRINT '=================================================================';
+PRINT '✓✓✓ DimGeography CHARGÉE AVEC SUCCÈS ✓✓✓';
+PRINT '=================================================================';
+PRINT '';
+PRINT 'Résumé :';
+PRINT '  ✓ 5 géographies chargées';
+PRINT '  ✓ ' + CAST(@LinkedStores AS VARCHAR) + ' magasins liés';
+PRINT '  ✓ Contrainte FK créée : DimStore → DimGeography';
+PRINT '  ✓ Index créé sur GeographySK';
+PRINT '';
+PRINT 'MODÈLE SNOWFLAKE ACTIF !';
+PRINT '';
+PRINT 'Relations :';
+PRINT '  FactProductSales → DimStore → DimGeography';
+PRINT '';
+PRINT 'Analyses possibles :';
+PRINT '  • Par Ville (City)';
+PRINT '  • Par Pays (Country)';
+PRINT '  • Par Région (Region)';
+PRINT '  • Par Continent (Continent)';
+PRINT '';
+PRINT 'Exemple de requête :';
+PRINT '  SELECT g.Continent, SUM(f.TotalAmount) AS CA';
+PRINT '  FROM FactProductSales f';
+PRINT '  JOIN DimStore s ON f.StoreSK = s.StoreSK';
+PRINT '  JOIN DimGeography g ON s.GeographySK = g.GeographySK';
+PRINT '  GROUP BY g.Continent;';
+PRINT '';
+PRINT 'Prochaines étapes (optionnelles) :';
+PRINT '  → 03C_CREATE_FactPromotionPerProduct.sql';
+PRINT '  → 03D_LOAD_FactPromotionPerProduct.sql';
+PRINT '';
+
+GO
