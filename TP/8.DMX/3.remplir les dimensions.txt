@@ -1,0 +1,299 @@
+/*
+====================================================
+FICHIER 2/3 - REMPLISSAGE TABLES DE DIMENSIONS
+====================================================
+Nom: 02_POPULATE_DIMENSIONS.sql
+Description: Population DimTime, DimProduct, DimCustomer
+Prerequis: 01_CREATE_DATABASE.sql execute
+Note: Features RFMT seront calculees APRES chargement FactSales
+====================================================
+*/
+
+USE DW_Shoes_Mining;
+GO
+
+PRINT '====================================================';
+PRINT 'DEBUT REMPLISSAGE DES DIMENSIONS';
+PRINT '====================================================';
+PRINT '';
+
+/*
+====================================================
+DIMENSION TEMPS (DimTime)
+Periode: 2022-2025 (4 ans)
+====================================================
+*/
+
+PRINT 'Remplissage DimTime...';
+
+DECLARE @StartDate DATE = '2022-01-01';
+DECLARE @EndDate DATE = '2025-12-31';
+DECLARE @CurrentDate DATE = @StartDate;
+
+WHILE @CurrentDate <= @EndDate
+BEGIN
+    DECLARE @Year INT = YEAR(@CurrentDate);
+    DECLARE @Month INT = MONTH(@CurrentDate);
+    DECLARE @Quarter INT = DATEPART(QUARTER, @CurrentDate);
+    DECLARE @DayOfWeek INT = DATEPART(WEEKDAY, @CurrentDate);
+    
+    -- Determination de la saison
+    DECLARE @Season NVARCHAR(20);
+    IF @Month IN (3, 4, 5) SET @Season = 'Spring';
+    ELSE IF @Month IN (6, 7, 8) SET @Season = 'Summer';
+    ELSE IF @Month IN (9, 10, 11) SET @Season = 'Fall';
+    ELSE SET @Season = 'Winter';
+    
+    -- Determination weekend
+    DECLARE @IsWeekend BIT = CASE WHEN @DayOfWeek IN (1, 7) THEN 1 ELSE 0 END;
+    
+    -- Jours feries simplifies
+    DECLARE @IsHoliday BIT = CASE 
+        WHEN (@Month = 1 AND DAY(@CurrentDate) = 1) THEN 1
+        WHEN (@Month = 5 AND DAY(@CurrentDate) = 1) THEN 1
+        WHEN (@Month = 12 AND DAY(@CurrentDate) = 25) THEN 1
+        ELSE 0 
+    END;
+    
+    INSERT INTO DimTime (
+        TimeKey, FullDate, Year, Quarter, Month, MonthName, 
+        Season, IsWeekend, IsHoliday
+    )
+    VALUES (
+        CAST(CONVERT(VARCHAR(8), @CurrentDate, 112) AS INT),
+        @CurrentDate,
+        @Year,
+        @Quarter,
+        @Month,
+        DATENAME(MONTH, @CurrentDate),
+        @Season,
+        @IsWeekend,
+        @IsHoliday
+    );
+    
+    SET @CurrentDate = DATEADD(DAY, 1, @CurrentDate);
+END
+
+DECLARE @DimTimeCount INT = @@ROWCOUNT;
+PRINT '  ' + CAST(@DimTimeCount AS VARCHAR) + ' jours inseres dans DimTime';
+PRINT '';
+
+/*
+====================================================
+DIMENSION PRODUIT (DimProduct)
+50 produits varies de chaussures
+====================================================
+*/
+
+PRINT 'Remplissage DimProduct...';
+
+DECLARE @Brands TABLE (Brand NVARCHAR(50));
+INSERT INTO @Brands VALUES 
+    ('Nike'), ('Adidas'), ('Puma'), ('Reebok'), ('New Balance'),
+    ('Converse'), ('Vans'), ('Skechers'), ('Timberland'), ('Clarks');
+
+DECLARE @Categories TABLE (Category NVARCHAR(50));
+INSERT INTO @Categories VALUES 
+    ('Sport'), ('Casual'), ('Formal'), ('Boots'), ('Sandals'), ('Sneakers');
+
+DECLARE @ProductCounter INT = 1;
+
+WHILE @ProductCounter <= 50
+BEGIN
+    DECLARE @Brand NVARCHAR(50) = (SELECT TOP 1 Brand FROM @Brands ORDER BY NEWID());
+    DECLARE @Category NVARCHAR(50) = (SELECT TOP 1 Category FROM @Categories ORDER BY NEWID());
+    
+    DECLARE @Gender NVARCHAR(20) = CASE (ABS(CHECKSUM(NEWID())) % 4)
+        WHEN 0 THEN 'Men'
+        WHEN 1 THEN 'Women'
+        WHEN 2 THEN 'Unisex'
+        ELSE 'Kids'
+    END;
+    
+    DECLARE @Material NVARCHAR(30) = CASE (ABS(CHECKSUM(NEWID())) % 5)
+        WHEN 0 THEN 'Leather'
+        WHEN 1 THEN 'Textile'
+        WHEN 2 THEN 'Synthetic'
+        WHEN 3 THEN 'Canvas'
+        ELSE 'Rubber'
+    END;
+    
+    DECLARE @Color NVARCHAR(30) = CASE (ABS(CHECKSUM(NEWID())) % 10)
+        WHEN 0 THEN 'Black'
+        WHEN 1 THEN 'White'
+        WHEN 2 THEN 'Blue'
+        WHEN 3 THEN 'Red'
+        WHEN 4 THEN 'Green'
+        WHEN 5 THEN 'Brown'
+        WHEN 6 THEN 'Grey'
+        WHEN 7 THEN 'Yellow'
+        WHEN 8 THEN 'Pink'
+        ELSE 'Multi-Color'
+    END;
+    
+    DECLARE @UnitCost DECIMAL(10,2);
+    DECLARE @RetailPrice DECIMAL(10,2);
+    DECLARE @PriceRange NVARCHAR(20);
+    
+    DECLARE @PriceCategory INT = (ABS(CHECKSUM(NEWID())) % 4);
+    IF @PriceCategory = 0
+    BEGIN
+        SET @UnitCost = 15 + (ABS(CHECKSUM(NEWID())) % 20);
+        SET @RetailPrice = @UnitCost * 2.5;
+        SET @PriceRange = 'Budget';
+    END
+    ELSE IF @PriceCategory = 1
+    BEGIN
+        SET @UnitCost = 35 + (ABS(CHECKSUM(NEWID())) % 30);
+        SET @RetailPrice = @UnitCost * 2.3;
+        SET @PriceRange = 'Mid';
+    END
+    ELSE IF @PriceCategory = 2
+    BEGIN
+        SET @UnitCost = 65 + (ABS(CHECKSUM(NEWID())) % 50);
+        SET @RetailPrice = @UnitCost * 2.0;
+        SET @PriceRange = 'Premium';
+    END
+    ELSE
+    BEGIN
+        SET @UnitCost = 120 + (ABS(CHECKSUM(NEWID())) % 100);
+        SET @RetailPrice = @UnitCost * 1.8;
+        SET @PriceRange = 'Luxury';
+    END
+    
+    DECLARE @IsNewCollection BIT = CASE WHEN @ProductCounter > 40 THEN 1 ELSE 0 END;
+    
+    INSERT INTO DimProduct (
+        ProductCode, ProductName, Brand, Category, Gender, PriceRange,
+        UnitCost, RetailPrice, Color, Material, IsNewCollection
+    )
+    VALUES (
+        'SHOE' + RIGHT('00000' + CAST(@ProductCounter AS VARCHAR), 5),
+        @Brand + ' ' + @Category + ' ' + @Color,
+        @Brand,
+        @Category,
+        @Gender,
+        @PriceRange,
+        @UnitCost,
+        @RetailPrice,
+        @Color,
+        @Material,
+        @IsNewCollection
+    );
+    
+    SET @ProductCounter = @ProductCounter + 1;
+END
+
+PRINT '  50 produits inseres dans DimProduct';
+PRINT '';
+
+/*
+====================================================
+DIMENSION CLIENT (DimCustomer)
+500 clients - Features RFMT en NULL (calcul apres FactSales)
+====================================================
+*/
+
+PRINT 'Remplissage DimCustomer...';
+
+DECLARE @Regions TABLE (Region NVARCHAR(50), City NVARCHAR(50));
+INSERT INTO @Regions VALUES 
+    ('Tunis', 'Tunis'),
+    ('Tunis', 'Ariana'),
+    ('Tunis', 'Ben Arous'),
+    ('Sfax', 'Sfax'),
+    ('Sousse', 'Sousse'),
+    ('Nabeul', 'Nabeul'),
+    ('Bizerte', 'Bizerte'),
+    ('Gabes', 'Gabes'),
+    ('Kairouan', 'Kairouan'),
+    ('Monastir', 'Monastir');
+
+DECLARE @FirstNames TABLE (FirstName NVARCHAR(50));
+INSERT INTO @FirstNames VALUES 
+    ('Mohamed'), ('Ahmed'), ('Fatma'), ('Amira'), ('Karim'),
+    ('Salma'), ('Youssef'), ('Leila'), ('Ali'), ('Nadia'),
+    ('Sami'), ('Marwa'), ('Hichem'), ('Ines'), ('Mehdi'),
+    ('Sirine'), ('Tarek'), ('Asma'), ('Bilel'), ('Rania');
+
+DECLARE @LastNames TABLE (LastName NVARCHAR(50));
+INSERT INTO @LastNames VALUES 
+    ('Ben Ali'), ('Trabelsi'), ('Gharbi'), ('Jlassi'), ('Kaddour'),
+    ('Mansour'), ('Mbarki'), ('Hamdi'), ('Sassi'), ('Bouazizi');
+
+DECLARE @CustomerCounter INT = 1;
+
+WHILE @CustomerCounter <= 500
+BEGIN
+    -- Donnees demographiques
+    DECLARE @Age INT = 18 + (ABS(CHECKSUM(NEWID())) % 63);
+    DECLARE @AgeGroup NVARCHAR(20) = CASE 
+        WHEN @Age BETWEEN 18 AND 25 THEN '18-25'
+        WHEN @Age BETWEEN 26 AND 35 THEN '26-35'
+        WHEN @Age BETWEEN 36 AND 45 THEN '36-45'
+        WHEN @Age BETWEEN 46 AND 60 THEN '46-60'
+        ELSE '60+'
+    END;
+    
+    DECLARE @CustomerGender NVARCHAR(10) = CASE (ABS(CHECKSUM(NEWID())) % 2)
+        WHEN 0 THEN 'M' ELSE 'F'
+    END;
+    
+    DECLARE @Income DECIMAL(10,2) = 500 + (ABS(CHECKSUM(NEWID())) % 5000);
+    DECLARE @IncomeGroup NVARCHAR(20) = CASE 
+        WHEN @Income < 1000 THEN 'Low'
+        WHEN @Income < 2500 THEN 'Medium'
+        WHEN @Income < 4000 THEN 'High'
+        ELSE 'VeryHigh'
+    END;
+    
+    -- Geographie
+    DECLARE @Location NVARCHAR(100) = (SELECT TOP 1 Region + '|' + City FROM @Regions ORDER BY NEWID());
+    DECLARE @Region NVARCHAR(50) = LEFT(@Location, CHARINDEX('|', @Location) - 1);
+    DECLARE @City NVARCHAR(50) = SUBSTRING(@Location, CHARINDEX('|', @Location) + 1, 50);
+    
+    -- Nom
+    DECLARE @FirstName NVARCHAR(50) = (SELECT TOP 1 FirstName FROM @FirstNames ORDER BY NEWID());
+    DECLARE @LastName NVARCHAR(50) = (SELECT TOP 1 LastName FROM @LastNames ORDER BY NEWID());
+    DECLARE @CustomerName NVARCHAR(100) = @FirstName + ' ' + @LastName;
+    
+    -- INSERTION - Features RFMT en NULL (seront calculees apres FactSales)
+    INSERT INTO DimCustomer (
+        CustomerCode, CustomerName, Age, AgeGroup, Gender, Income, IncomeGroup,
+        City, Region, Country
+    )
+    VALUES (
+        'CUST' + RIGHT('00000' + CAST(@CustomerCounter AS VARCHAR), 5),
+        @CustomerName, @Age, @AgeGroup, @CustomerGender, @Income, @IncomeGroup,
+        @City, @Region, 'Tunisia'
+    );
+    
+    SET @CustomerCounter = @CustomerCounter + 1;
+END
+
+PRINT '  500 clients inseres dans DimCustomer';
+PRINT '';
+
+/*
+====================================================
+RESUME
+====================================================
+*/
+
+PRINT '====================================================';
+PRINT 'DIMENSIONS REMPLIES AVEC SUCCES';
+PRINT '====================================================';
+PRINT '';
+PRINT 'Statistiques:';
+PRINT '  - DimTime: ~1460 jours (2022-2025)';
+PRINT '  - DimProduct: 50 produits';
+PRINT '  - DimCustomer: 500 clients';
+PRINT '';
+PRINT 'Note importante:';
+PRINT '  Features RFMT dans DimCustomer sont en NULL';
+PRINT '  Elles seront calculees APRES chargement FactSales';
+PRINT '';
+PRINT 'Prochaine etape:';
+PRINT '  Executer 03_POPULATE_FACTS.sql';
+PRINT '====================================================';
+GO

@@ -1,0 +1,523 @@
+/*
+====================================================
+FICHIER 3/3 - REMPLISSAGE FACTSALES + CALCUL RFMT
+====================================================
+Nom: 03_POPULATE_FACTS.sql
+Description: 
+  1. Population FactSales (AVEC OrderDate)
+  2. Calcul automatique features RFMT dans DimCustomer
+Prerequis: 02_POPULATE_DIMENSIONS.sql execute
+====================================================
+*/
+
+USE DW_Shoes_Mining;
+GO
+
+PRINT '====================================================';
+PRINT 'ETAPE 1/2: REMPLISSAGE FACTSALES';
+PRINT '====================================================';
+PRINT '';
+
+/*
+====================================================
+GENERATION PROFILS CLIENTS REALISTES
+====================================================
+*/
+
+PRINT 'Generation profils clients...';
+
+-- Table temporaire pour stocker profils
+CREATE TABLE #CustomerProfiles (
+    CustomerKey INT,
+    TotalOrders INT,
+    FirstPurchaseDate DATE,
+    LastPurchaseDate DATE,
+    AvgOrderValue DECIMAL(10,2),
+    FavoriteCategory NVARCHAR(50),
+    FavoriteBrand NVARCHAR(50),
+    PreferredPriceRange NVARCHAR(20),
+    PercentDiscount DECIMAL(5,2),
+    HasReturns BIT,
+    ReturnRate DECIMAL(5,2)
+);
+
+-- Generer profil pour chaque client
+INSERT INTO #CustomerProfiles
+SELECT 
+    CustomerKey,
+    
+    -- Nombre commandes (distribution realiste)
+    CASE 
+        WHEN (ABS(CHECKSUM(NEWID())) % 100) < 10 THEN 15 + (ABS(CHECKSUM(NEWID())) % 20)  -- 10% VIP
+        WHEN (ABS(CHECKSUM(NEWID())) % 100) < 35 THEN 6 + (ABS(CHECKSUM(NEWID())) % 9)    -- 25% Regular
+        WHEN (ABS(CHECKSUM(NEWID())) % 100) < 70 THEN 2 + (ABS(CHECKSUM(NEWID())) % 4)    -- 35% Occasional
+        ELSE 1 + (ABS(CHECKSUM(NEWID())) % 2)                                             -- 30% New/AtRisk
+    END AS TotalOrders,
+    
+    -- Premiere commande (sur 3 ans)
+    DATEADD(DAY, -(ABS(CHECKSUM(NEWID())) % 1095), '2025-12-31') AS FirstPurchaseDate,
+    
+    -- Derniere commande (recency variable)
+    CASE 
+        WHEN (ABS(CHECKSUM(NEWID())) % 100) < 20 THEN DATEADD(DAY, -(180 + (ABS(CHECKSUM(NEWID())) % 365)), '2025-12-31')  -- 20% churned
+        WHEN (ABS(CHECKSUM(NEWID())) % 100) < 40 THEN DATEADD(DAY, -(90 + (ABS(CHECKSUM(NEWID())) % 90)), '2025-12-31')    -- 20% at risk
+        WHEN (ABS(CHECKSUM(NEWID())) % 100) < 70 THEN DATEADD(DAY, -(30 + (ABS(CHECKSUM(NEWID())) % 60)), '2025-12-31')    -- 30% stable
+        ELSE DATEADD(DAY, -(ABS(CHECKSUM(NEWID())) % 30), '2025-12-31')                                                     -- 30% actifs
+    END AS LastPurchaseDate,
+    
+    -- Panier moyen
+    50 + (ABS(CHECKSUM(NEWID())) % 200) AS AvgOrderValue,
+    
+    -- Preferences (on prendra au hasard des produits existants)
+    NULL AS FavoriteCategory,
+    NULL AS FavoriteBrand,
+    NULL AS PreferredPriceRange,
+    
+    -- Comportement remises
+    (ABS(CHECKSUM(NEWID())) % 80) AS PercentDiscount,
+    CASE WHEN (ABS(CHECKSUM(NEWID())) % 100) < 15 THEN 1 ELSE 0 END AS HasReturns,
+    CASE WHEN (ABS(CHECKSUM(NEWID())) % 100) < 15 THEN 5 + (ABS(CHECKSUM(NEWID())) % 20) ELSE 0 END AS ReturnRate
+
+FROM DimCustomer;
+
+-- Affecter preferences depuis produits existants
+UPDATE #CustomerProfiles
+SET 
+    FavoriteCategory = (SELECT TOP 1 Category FROM DimProduct ORDER BY NEWID()),
+    FavoriteBrand = (SELECT TOP 1 Brand FROM DimProduct ORDER BY NEWID()),
+    PreferredPriceRange = (SELECT TOP 1 PriceRange FROM DimProduct ORDER BY NEWID());
+
+PRINT '  Profils generes pour 500 clients';
+PRINT '';
+
+/*
+====================================================
+GENERATION VENTES AVEC ORDERDATE
+====================================================
+*/
+
+PRINT 'Generation ventes...';
+
+DECLARE @TotalSalesInserted INT = 0;
+
+DECLARE @CustomerKey INT;
+DECLARE @TotalOrders INT;
+DECLARE @FirstPurchaseDate DATE;
+DECLARE @LastPurchaseDate DATE;
+DECLARE @AvgOrderValue DECIMAL(10,2);
+DECLARE @FavoriteCategory NVARCHAR(50);
+DECLARE @FavoriteBrand NVARCHAR(50);
+DECLARE @PreferredPriceRange NVARCHAR(20);
+DECLARE @PercentDiscount DECIMAL(5,2);
+DECLARE @HasReturns BIT;
+DECLARE @ReturnRate DECIMAL(5,2);
+
+DECLARE customer_cursor CURSOR FOR
+SELECT * FROM #CustomerProfiles ORDER BY CustomerKey;
+
+OPEN customer_cursor;
+
+FETCH NEXT FROM customer_cursor INTO 
+    @CustomerKey, @TotalOrders, @FirstPurchaseDate, @LastPurchaseDate,
+    @AvgOrderValue, @FavoriteCategory, @FavoriteBrand, @PreferredPriceRange,
+    @PercentDiscount, @HasReturns, @ReturnRate;
+
+WHILE @@FETCH_STATUS = 0
+BEGIN
+    DECLARE @OrderNum INT = 1;
+    DECLARE @DaysBetween INT = CASE 
+        WHEN @TotalOrders > 1 THEN DATEDIFF(DAY, @FirstPurchaseDate, @LastPurchaseDate) / (@TotalOrders - 1)
+        ELSE 0
+    END;
+    
+    WHILE @OrderNum <= @TotalOrders
+    BEGIN
+        -- *** CALCUL ORDERDATE ***
+        DECLARE @OrderDate DATE;
+        IF @OrderNum = 1
+            SET @OrderDate = @FirstPurchaseDate;
+        ELSE IF @OrderNum = @TotalOrders
+            SET @OrderDate = @LastPurchaseDate;
+        ELSE
+        BEGIN
+            DECLARE @VariationDays INT = -5 + (ABS(CHECKSUM(NEWID())) % 10);
+            SET @OrderDate = DATEADD(DAY, (@DaysBetween * (@OrderNum - 1)) + @VariationDays, @FirstPurchaseDate);
+            IF @OrderDate < @FirstPurchaseDate SET @OrderDate = @FirstPurchaseDate;
+            IF @OrderDate > @LastPurchaseDate SET @OrderDate = @LastPurchaseDate;
+        END
+        
+        -- TimeKey depuis OrderDate
+        DECLARE @TimeKey INT = CAST(CONVERT(VARCHAR(8), @OrderDate, 112) AS INT);
+        
+        -- Verifier TimeKey existe
+        IF NOT EXISTS (SELECT 1 FROM DimTime WHERE TimeKey = @TimeKey)
+        BEGIN
+            SET @TimeKey = (SELECT TOP 1 TimeKey FROM DimTime ORDER BY ABS(TimeKey - @TimeKey));
+            SET @OrderDate = (SELECT FullDate FROM DimTime WHERE TimeKey = @TimeKey);
+        END
+        
+        -- Selection produit (70% preferences, 30% aleatoire)
+        DECLARE @ProductKey INT;
+        IF (ABS(CHECKSUM(NEWID())) % 100) < 70
+        BEGIN
+            SET @ProductKey = (
+                SELECT TOP 1 ProductKey 
+                FROM DimProduct 
+                WHERE Category = @FavoriteCategory 
+                    OR Brand = @FavoriteBrand
+                    OR PriceRange = @PreferredPriceRange
+                ORDER BY NEWID()
+            );
+        END
+        
+        IF @ProductKey IS NULL
+            SET @ProductKey = (SELECT TOP 1 ProductKey FROM DimProduct ORDER BY NEWID());
+        
+        -- Quantite
+        DECLARE @OrderQuantity INT = CASE WHEN (ABS(CHECKSUM(NEWID())) % 100) < 90 THEN 1 ELSE 2 END;
+        
+        -- Prix
+        DECLARE @UnitPrice DECIMAL(10,2) = (SELECT RetailPrice FROM DimProduct WHERE ProductKey = @ProductKey);
+        
+        -- Remise
+        DECLARE @DiscountPercent DECIMAL(5,2) = 0;
+        IF (ABS(CHECKSUM(NEWID())) % 100) < @PercentDiscount
+        BEGIN
+            DECLARE @DiscountLevel INT = (ABS(CHECKSUM(NEWID())) % 5);
+            SET @DiscountPercent = CASE @DiscountLevel
+                WHEN 0 THEN 10 WHEN 1 THEN 15 WHEN 2 THEN 20 WHEN 3 THEN 25 ELSE 30
+            END;
+        END
+        
+        -- Premier achat
+        DECLARE @IsFirstPurchase BIT = CASE WHEN @OrderNum = 1 THEN 1 ELSE 0 END;
+        
+        -- Retour
+        DECLARE @WasReturned BIT = CASE 
+            WHEN @HasReturns = 1 AND (ABS(CHECKSUM(NEWID())) % 100) < @ReturnRate THEN 1 
+            ELSE 0 
+        END;
+        
+        -- Livraison
+        DECLARE @DaysToShip INT = 2 + (ABS(CHECKSUM(NEWID())) % 6);
+        
+        -- *** INSERTION AVEC ORDERDATE ***
+        INSERT INTO FactSales (
+            TimeKey, ProductKey, CustomerKey, OrderDate,
+            OrderQuantity, UnitPrice, DiscountPercent,
+            IsFirstPurchase, WasReturned, DaysToShip
+        )
+        VALUES (
+            @TimeKey, @ProductKey, @CustomerKey, @OrderDate,
+            @OrderQuantity, @UnitPrice, @DiscountPercent,
+            @IsFirstPurchase, @WasReturned, @DaysToShip
+        );
+        
+        SET @TotalSalesInserted = @TotalSalesInserted + 1;
+        SET @OrderNum = @OrderNum + 1;
+        SET @ProductKey = NULL;
+    END
+    
+    FETCH NEXT FROM customer_cursor INTO 
+        @CustomerKey, @TotalOrders, @FirstPurchaseDate, @LastPurchaseDate,
+        @AvgOrderValue, @FavoriteCategory, @FavoriteBrand, @PreferredPriceRange,
+        @PercentDiscount, @HasReturns, @ReturnRate;
+END
+
+CLOSE customer_cursor;
+DEALLOCATE customer_cursor;
+
+DROP TABLE #CustomerProfiles;
+
+PRINT '  ' + CAST(@TotalSalesInserted AS VARCHAR) + ' ventes inserees dans FactSales';
+PRINT '';
+
+/*
+====================================================
+ETAPE 2/2: CALCUL FEATURES RFMT
+====================================================
+*/
+
+PRINT '====================================================';
+PRINT 'ETAPE 2/2: CALCUL FEATURES RFMT';
+PRINT '====================================================';
+PRINT '';
+
+DECLARE @ReferenceDate DATE = '2025-12-31';
+PRINT 'Date de reference: ' + CAST(@ReferenceDate AS VARCHAR);
+PRINT '';
+
+-- Mise a jour dates et compteurs de base
+PRINT 'Calcul dates et compteurs...';
+UPDATE c
+SET 
+    c.FirstPurchaseDate = agg.FirstPurchase,
+    c.LastPurchaseDate = agg.LastPurchase,
+    c.TotalOrders = agg.TotalOrders,
+    c.OrdersLast90Days = agg.OrdersLast90Days,
+    c.OrdersLast180Days = agg.OrdersLast180Days,
+    c.TotalSpent = agg.TotalSpent,
+    c.AverageOrderValue = agg.AvgOrderValue,
+    c.MaxOrderValue = agg.MaxOrderValue
+FROM DimCustomer c
+INNER JOIN (
+    SELECT 
+        CustomerKey,
+        MIN(OrderDate) AS FirstPurchase,
+        MAX(OrderDate) AS LastPurchase,
+        COUNT(*) AS TotalOrders,
+        SUM(CASE WHEN DATEDIFF(DAY, OrderDate, @ReferenceDate) <= 90 THEN 1 ELSE 0 END) AS OrdersLast90Days,
+        SUM(CASE WHEN DATEDIFF(DAY, OrderDate, @ReferenceDate) <= 180 THEN 1 ELSE 0 END) AS OrdersLast180Days,
+        SUM(NetAmount) AS TotalSpent,
+        AVG(NetAmount) AS AvgOrderValue,
+        MAX(NetAmount) AS MaxOrderValue
+    FROM FactSales
+    GROUP BY CustomerKey
+) agg ON c.CustomerKey = agg.CustomerKey;
+PRINT '  OK';
+
+-- Calcul RECENCY (R)
+PRINT 'Calcul Recency...';
+UPDATE c
+SET 
+    c.DaysSinceLastPurchase = DATEDIFF(DAY, c.LastPurchaseDate, @ReferenceDate),
+    c.RecencyScore = CASE 
+        WHEN DATEDIFF(DAY, c.LastPurchaseDate, @ReferenceDate) <= 30 THEN 5
+        WHEN DATEDIFF(DAY, c.LastPurchaseDate, @ReferenceDate) <= 60 THEN 4
+        WHEN DATEDIFF(DAY, c.LastPurchaseDate, @ReferenceDate) <= 90 THEN 3
+        WHEN DATEDIFF(DAY, c.LastPurchaseDate, @ReferenceDate) <= 180 THEN 2
+        ELSE 1
+    END
+FROM DimCustomer c
+WHERE c.FirstPurchaseDate IS NOT NULL;
+PRINT '  OK';
+
+-- Calcul FREQUENCY (F)
+PRINT 'Calcul Frequency...';
+UPDATE c
+SET 
+    c.FrequencyScore = CASE 
+        WHEN c.TotalOrders >= 15 THEN 5
+        WHEN c.TotalOrders >= 10 THEN 4
+        WHEN c.TotalOrders >= 6 THEN 3
+        WHEN c.TotalOrders >= 3 THEN 2
+        ELSE 1
+    END
+FROM DimCustomer c
+WHERE c.TotalOrders IS NOT NULL;
+PRINT '  OK';
+
+-- Calcul MONETARY (M)
+PRINT 'Calcul Monetary...';
+UPDATE c
+SET 
+    c.MonetaryScore = CASE 
+        WHEN c.TotalSpent >= 2000 THEN 5
+        WHEN c.TotalSpent >= 1200 THEN 4
+        WHEN c.TotalSpent >= 600 THEN 3
+        WHEN c.TotalSpent >= 300 THEN 2
+        ELSE 1
+    END
+FROM DimCustomer c
+WHERE c.TotalSpent IS NOT NULL;
+PRINT '  OK';
+
+-- Calcul TENURE (T)
+PRINT 'Calcul Tenure...';
+UPDATE c
+SET 
+    c.DaysSinceFirstPurchase = DATEDIFF(DAY, c.FirstPurchaseDate, @ReferenceDate),
+    c.TenureMonths = DATEDIFF(MONTH, c.FirstPurchaseDate, @ReferenceDate),
+    c.TenureScore = CASE 
+        WHEN DATEDIFF(MONTH, c.FirstPurchaseDate, @ReferenceDate) >= 24 THEN 5
+        WHEN DATEDIFF(MONTH, c.FirstPurchaseDate, @ReferenceDate) >= 18 THEN 4
+        WHEN DATEDIFF(MONTH, c.FirstPurchaseDate, @ReferenceDate) >= 12 THEN 3
+        WHEN DATEDIFF(MONTH, c.FirstPurchaseDate, @ReferenceDate) >= 6 THEN 2
+        ELSE 1
+    END
+FROM DimCustomer c
+WHERE c.FirstPurchaseDate IS NOT NULL;
+PRINT '  OK';
+
+-- Calcul TENDANCE
+PRINT 'Calcul tendances...';
+UPDATE c
+SET 
+    c.AvgDaysBetweenOrders = CASE 
+        WHEN c.TotalOrders > 1 THEN 
+            DATEDIFF(DAY, c.FirstPurchaseDate, c.LastPurchaseDate) / (c.TotalOrders - 1)
+        ELSE 0
+    END,
+    c.PurchaseTrend = CASE 
+        WHEN c.OrdersLast90Days > (c.TotalOrders / 4.0) THEN 'Increasing'
+        WHEN c.OrdersLast90Days < (c.TotalOrders / 8.0) THEN 'Decreasing'
+        ELSE 'Stable'
+    END
+FROM DimCustomer c
+WHERE c.TotalOrders IS NOT NULL;
+PRINT '  OK';
+
+-- Calcul DIVERSITE
+PRINT 'Calcul diversite produits...';
+UPDATE c
+SET 
+    c.UniqueBrandsPurchased = agg.UniqueBrands,
+    c.UniqueCategoriesPurchased = agg.UniqueCategories,
+    c.FavoriteCategory = agg.TopCategory,
+    c.FavoriteBrand = agg.TopBrand,
+    c.PreferredPriceRange = agg.TopPriceRange
+FROM DimCustomer c
+INNER JOIN (
+    SELECT 
+        f.CustomerKey,
+        COUNT(DISTINCT p.Brand) AS UniqueBrands,
+        COUNT(DISTINCT p.Category) AS UniqueCategories,
+        (SELECT TOP 1 p2.Category FROM FactSales f2 INNER JOIN DimProduct p2 ON f2.ProductKey = p2.ProductKey
+         WHERE f2.CustomerKey = f.CustomerKey GROUP BY p2.Category ORDER BY COUNT(*) DESC) AS TopCategory,
+        (SELECT TOP 1 p2.Brand FROM FactSales f2 INNER JOIN DimProduct p2 ON f2.ProductKey = p2.ProductKey
+         WHERE f2.CustomerKey = f.CustomerKey GROUP BY p2.Brand ORDER BY COUNT(*) DESC) AS TopBrand,
+        (SELECT TOP 1 p2.PriceRange FROM FactSales f2 INNER JOIN DimProduct p2 ON f2.ProductKey = p2.ProductKey
+         WHERE f2.CustomerKey = f.CustomerKey GROUP BY p2.PriceRange ORDER BY COUNT(*) DESC) AS TopPriceRange
+    FROM FactSales f
+    INNER JOIN DimProduct p ON f.ProductKey = p.ProductKey
+    GROUP BY f.CustomerKey
+) agg ON c.CustomerKey = agg.CustomerKey;
+PRINT '  OK';
+
+-- Calcul COMPORTEMENTS
+PRINT 'Calcul comportements achat...';
+UPDATE c
+SET 
+    c.PercentDiscountPurchases = agg.PctDiscount,
+    c.HasReturnedItems = agg.HasReturns,
+    c.ReturnRate = agg.ReturnPct
+FROM DimCustomer c
+INNER JOIN (
+    SELECT 
+        CustomerKey,
+        CAST(SUM(CASE WHEN DiscountPercent > 0 THEN 1 ELSE 0 END) * 100.0 / COUNT(*) AS DECIMAL(5,2)) AS PctDiscount,
+        CAST(MAX(CAST(WasReturned AS INT)) AS BIT) AS HasReturns,
+        CAST(SUM(CASE WHEN WasReturned = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*) AS DECIMAL(5,2)) AS ReturnPct
+    FROM FactSales
+    GROUP BY CustomerKey
+) agg ON c.CustomerKey = agg.CustomerKey;
+PRINT '  OK';
+
+-- Calcul SAISONNALITE
+PRINT 'Calcul saisonnalite...';
+UPDATE c
+SET 
+    c.PurchasesInSpring = agg.SpringOrders,
+    c.PurchasesInSummer = agg.SummerOrders,
+    c.PurchasesInFall = agg.FallOrders,
+    c.PurchasesInWinter = agg.WinterOrders
+FROM DimCustomer c
+INNER JOIN (
+    SELECT 
+        f.CustomerKey,
+        SUM(CASE WHEN t.Season = 'Spring' THEN 1 ELSE 0 END) AS SpringOrders,
+        SUM(CASE WHEN t.Season = 'Summer' THEN 1 ELSE 0 END) AS SummerOrders,
+        SUM(CASE WHEN t.Season = 'Fall' THEN 1 ELSE 0 END) AS FallOrders,
+        SUM(CASE WHEN t.Season = 'Winter' THEN 1 ELSE 0 END) AS WinterOrders
+    FROM FactSales f
+    INNER JOIN DimTime t ON f.TimeKey = t.TimeKey
+    GROUP BY f.CustomerKey
+) agg ON c.CustomerKey = agg.CustomerKey;
+PRINT '  OK';
+
+-- Calcul LABELS CHURN
+PRINT 'Calcul labels Churn...';
+UPDATE c
+SET 
+    c.HasChurned = CASE WHEN c.DaysSinceLastPurchase > 180 THEN 1 ELSE 0 END,
+    c.ChurnRiskCategory = CASE 
+        WHEN c.DaysSinceLastPurchase > 180 THEN 'High'
+        WHEN c.DaysSinceLastPurchase > 90 THEN 'Medium'
+        ELSE 'Low'
+    END,
+    c.CustomerSegment = CASE 
+        WHEN c.RecencyScore >= 4 AND c.FrequencyScore >= 4 AND c.MonetaryScore >= 4 THEN 'VIP'
+        WHEN c.RecencyScore >= 3 AND c.FrequencyScore >= 3 THEN 'Regular'
+        WHEN c.DaysSinceLastPurchase > 180 OR c.RecencyScore <= 2 THEN 'AtRisk'
+        WHEN c.TotalOrders <= 2 THEN 'New'
+        ELSE 'Occasional'
+    END,
+    c.LifetimeValueCategory = CASE 
+        WHEN c.TotalSpent >= 1500 THEN 'High'
+        WHEN c.TotalSpent >= 600 THEN 'Medium'
+        ELSE 'Low'
+    END
+FROM DimCustomer c
+WHERE c.DaysSinceLastPurchase IS NOT NULL;
+PRINT '  OK';
+PRINT '';
+
+/*
+====================================================
+STATISTIQUES FINALES
+====================================================
+*/
+
+PRINT '====================================================';
+PRINT 'BASE COMPLETEE AVEC SUCCES';
+PRINT '====================================================';
+PRINT '';
+
+-- Stats ventes
+SELECT 
+    'FactSales' AS Table_Name,
+    COUNT(*) AS Total_Lignes,
+    MIN(OrderDate) AS Premiere_Vente,
+    MAX(OrderDate) AS Derniere_Vente,
+    SUM(NetAmount) AS CA_Total
+FROM FactSales;
+
+PRINT '';
+
+-- Stats RFMT
+PRINT 'Distribution RFMT:';
+SELECT 
+    'Recency' AS Score_Type, RecencyScore AS Score, COUNT(*) AS Clients
+FROM DimCustomer WHERE RecencyScore IS NOT NULL GROUP BY RecencyScore
+UNION ALL
+SELECT 'Frequency', FrequencyScore, COUNT(*) FROM DimCustomer WHERE FrequencyScore IS NOT NULL GROUP BY FrequencyScore
+UNION ALL
+SELECT 'Monetary', MonetaryScore, COUNT(*) FROM DimCustomer WHERE MonetaryScore IS NOT NULL GROUP BY MonetaryScore
+UNION ALL
+SELECT 'Tenure', TenureScore, COUNT(*) FROM DimCustomer WHERE TenureScore IS NOT NULL GROUP BY TenureScore
+ORDER BY Score_Type, Score DESC;
+
+PRINT '';
+
+-- Stats Churn
+PRINT 'Distribution Churn:';
+SELECT 
+    ChurnRiskCategory,
+    COUNT(*) AS Clients,
+    CAST(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM DimCustomer WHERE ChurnRiskCategory IS NOT NULL) AS DECIMAL(5,2)) AS Pourcent
+FROM DimCustomer
+WHERE ChurnRiskCategory IS NOT NULL
+GROUP BY ChurnRiskCategory
+ORDER BY CASE ChurnRiskCategory WHEN 'High' THEN 1 WHEN 'Medium' THEN 2 ELSE 3 END;
+
+PRINT '';
+
+-- Stats Segments
+PRINT 'Distribution Segments:';
+SELECT 
+    CustomerSegment,
+    COUNT(*) AS Clients,
+    AVG(TotalSpent) AS CA_Moyen
+FROM DimCustomer
+WHERE CustomerSegment IS NOT NULL
+GROUP BY CustomerSegment
+ORDER BY AVG(TotalSpent) DESC;
+
+PRINT '';
+PRINT '====================================================';
+PRINT 'PROCHAINES ETAPES:';
+PRINT '  1. Creer vues d''analyse';
+PRINT '  2. Creer vue vw_ChurnPrediction_Features';
+PRINT '  3. Configurer SSAS Mining Structure';
+PRINT '====================================================';
+GO

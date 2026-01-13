@@ -1,0 +1,304 @@
+/*
+====================================================
+FICHIER 1/3 - CREATION BASE DE DONNEES
+====================================================
+Nom: 01_CREATE_DATABASE.sql
+Description: Creation DW_Shoes_Mining pour Data Mining
+Tables: DimTime, DimProduct, DimCustomer, FactSales
+Exigences atelier: OrderDate dans FactSales pour calculs RFMT
+====================================================
+*/
+
+USE master;
+GO
+
+-- Suppression base existante
+IF EXISTS (SELECT name FROM sys.databases WHERE name = 'DW_Shoes_Mining')
+BEGIN
+    PRINT 'Suppression base existante...';
+    ALTER DATABASE DW_Shoes_Mining SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+    DROP DATABASE DW_Shoes_Mining;
+    PRINT 'Base supprimee';
+END
+GO
+
+-- Creation nouvelle base
+PRINT 'Creation DW_Shoes_Mining...';
+CREATE DATABASE DW_Shoes_Mining;
+GO
+
+USE DW_Shoes_Mining;
+GO
+
+PRINT 'Base creee avec succes';
+PRINT '';
+
+/*
+====================================================
+TABLE: DimTime
+====================================================
+*/
+
+PRINT 'Creation DimTime...';
+
+CREATE TABLE DimTime (
+    TimeKey INT PRIMARY KEY,
+    FullDate DATE NOT NULL UNIQUE,
+    Year INT NOT NULL,
+    Quarter INT NOT NULL,
+    Month INT NOT NULL,
+    MonthName NVARCHAR(20) NOT NULL,
+    Season NVARCHAR(20) NOT NULL,
+    IsWeekend BIT NOT NULL DEFAULT 0,
+    IsHoliday BIT NOT NULL DEFAULT 0,
+    
+    CONSTRAINT CHK_Quarter CHECK (Quarter BETWEEN 1 AND 4),
+    CONSTRAINT CHK_Month CHECK (Month BETWEEN 1 AND 12),
+    CONSTRAINT CHK_Season CHECK (Season IN ('Spring', 'Summer', 'Fall', 'Winter'))
+);
+
+CREATE INDEX IX_DimTime_Year ON DimTime(Year);
+CREATE INDEX IX_DimTime_Season ON DimTime(Season);
+CREATE INDEX IX_DimTime_YearMonth ON DimTime(Year, Month);
+CREATE INDEX IX_DimTime_FullDate ON DimTime(FullDate);
+
+PRINT 'DimTime creee';
+
+/*
+====================================================
+TABLE: DimProduct
+====================================================
+*/
+
+PRINT 'Creation DimProduct...';
+
+CREATE TABLE DimProduct (
+    ProductKey INT IDENTITY(1,1) PRIMARY KEY,
+    ProductCode NVARCHAR(20) NOT NULL UNIQUE,
+    ProductName NVARCHAR(100) NOT NULL,
+    Brand NVARCHAR(50) NOT NULL,
+    Category NVARCHAR(50) NOT NULL,
+    Gender NVARCHAR(20) NOT NULL,
+    PriceRange NVARCHAR(20) NOT NULL,
+    UnitCost DECIMAL(10,2) NOT NULL,
+    RetailPrice DECIMAL(10,2) NOT NULL,
+    Color NVARCHAR(30) NOT NULL,
+    Material NVARCHAR(30) NOT NULL,
+    IsNewCollection BIT NOT NULL DEFAULT 0,
+    
+    CONSTRAINT CHK_Category CHECK (Category IN ('Sport', 'Casual', 'Formal', 'Boots', 'Sandals', 'Sneakers')),
+    CONSTRAINT CHK_Gender CHECK (Gender IN ('Men', 'Women', 'Unisex', 'Kids')),
+    CONSTRAINT CHK_PriceRange CHECK (PriceRange IN ('Budget', 'Mid', 'Premium', 'Luxury')),
+    CONSTRAINT CHK_UnitCost CHECK (UnitCost > 0),
+    CONSTRAINT CHK_RetailPrice CHECK (RetailPrice > 0),
+    CONSTRAINT CHK_Material CHECK (Material IN ('Leather', 'Textile', 'Synthetic', 'Canvas', 'Rubber'))
+);
+
+CREATE INDEX IX_Product_Category ON DimProduct(Category);
+CREATE INDEX IX_Product_Brand ON DimProduct(Brand);
+CREATE INDEX IX_Product_PriceRange ON DimProduct(PriceRange);
+CREATE INDEX IX_Product_Gender ON DimProduct(Gender);
+CREATE INDEX IX_Product_BrandCategory ON DimProduct(Brand, Category);
+
+PRINT 'DimProduct creee';
+
+/*
+====================================================
+TABLE: DimCustomer
+Features RFMT pre-calculees (seront mises a jour apres chargement)
+====================================================
+*/
+
+PRINT 'Creation DimCustomer...';
+
+CREATE TABLE DimCustomer (
+    CustomerKey INT IDENTITY(1,1) PRIMARY KEY,
+    CustomerCode NVARCHAR(20) NOT NULL UNIQUE,
+    CustomerName NVARCHAR(100) NOT NULL,
+    
+    -- Demographiques
+    Age INT NOT NULL,
+    AgeGroup NVARCHAR(20) NOT NULL,
+    Gender NVARCHAR(10) NOT NULL,
+    Income DECIMAL(10,2) NOT NULL,
+    IncomeGroup NVARCHAR(20) NOT NULL,
+    
+    -- Geographiques
+    City NVARCHAR(50) NOT NULL,
+    Region NVARCHAR(50) NOT NULL,
+    Country NVARCHAR(50) NOT NULL DEFAULT 'Tunisia',
+    
+    -- Dates cles (seront calculees depuis FactSales)
+    FirstPurchaseDate DATE NULL,
+    LastPurchaseDate DATE NULL,
+    
+    -- FEATURES RFMT (seront calculees depuis FactSales)
+    -- R = Recency
+    DaysSinceLastPurchase INT NULL,
+    RecencyScore INT NULL,
+    
+    -- F = Frequency
+    TotalOrders INT NULL,
+    OrdersLast90Days INT NULL,
+    OrdersLast180Days INT NULL,
+    FrequencyScore INT NULL,
+    
+    -- M = Monetary
+    TotalSpent DECIMAL(12,2) NULL,
+    AverageOrderValue DECIMAL(10,2) NULL,
+    MaxOrderValue DECIMAL(10,2) NULL,
+    MonetaryScore INT NULL,
+    
+    -- T = Tenure
+    DaysSinceFirstPurchase INT NULL,
+    TenureMonths INT NULL,
+    TenureScore INT NULL,
+    
+    -- FEATURES COMPORTEMENTALES (seront calculees depuis FactSales)
+    PurchaseTrend NVARCHAR(20) NULL,
+    AvgDaysBetweenOrders INT NULL,
+    
+    FavoriteCategory NVARCHAR(50) NULL,
+    FavoriteBrand NVARCHAR(50) NULL,
+    PreferredPriceRange NVARCHAR(20) NULL,
+    
+    UniqueBrandsPurchased INT NULL,
+    UniqueCategoriesPurchased INT NULL,
+    
+    PercentDiscountPurchases DECIMAL(5,2) NULL,
+    HasReturnedItems BIT NULL,
+    ReturnRate DECIMAL(5,2) NULL,
+    
+    PurchasesInSummer INT NULL,
+    PurchasesInWinter INT NULL,
+    PurchasesInSpring INT NULL,
+    PurchasesInFall INT NULL,
+    
+    -- LABELS POUR MINING (seront calcules depuis FactSales)
+    HasChurned BIT NULL,
+    ChurnRiskCategory NVARCHAR(20) NULL,
+    
+    CustomerSegment NVARCHAR(30) NULL,
+    LifetimeValueCategory NVARCHAR(20) NULL,
+    
+    -- PREDICTIONS (a remplir par modele mining)
+    ChurnScore DECIMAL(5,4) NULL,
+    ChurnPredictionDate DATETIME NULL,
+    PredictedNextPurchaseDate DATE NULL,
+    PredictedCLV DECIMAL(12,2) NULL,
+    
+    -- CONTRAINTES
+    CONSTRAINT CHK_Age CHECK (Age BETWEEN 18 AND 120),
+    CONSTRAINT CHK_AgeGroup CHECK (AgeGroup IN ('18-25', '26-35', '36-45', '46-60', '60+')),
+    CONSTRAINT CHK_CustomerGender CHECK (Gender IN ('M', 'F', 'Other')),
+    CONSTRAINT CHK_IncomeGroup CHECK (IncomeGroup IN ('Low', 'Medium', 'High', 'VeryHigh')),
+    CONSTRAINT CHK_RecencyScore CHECK (RecencyScore IS NULL OR RecencyScore BETWEEN 1 AND 5),
+    CONSTRAINT CHK_FrequencyScore CHECK (FrequencyScore IS NULL OR FrequencyScore BETWEEN 1 AND 5),
+    CONSTRAINT CHK_MonetaryScore CHECK (MonetaryScore IS NULL OR MonetaryScore BETWEEN 1 AND 5),
+    CONSTRAINT CHK_TenureScore CHECK (TenureScore IS NULL OR TenureScore BETWEEN 1 AND 5),
+    CONSTRAINT CHK_PurchaseTrend CHECK (PurchaseTrend IS NULL OR PurchaseTrend IN ('Increasing', 'Stable', 'Decreasing')),
+    CONSTRAINT CHK_ChurnRiskCategory CHECK (ChurnRiskCategory IS NULL OR ChurnRiskCategory IN ('High', 'Medium', 'Low')),
+    CONSTRAINT CHK_CustomerSegment CHECK (CustomerSegment IS NULL OR CustomerSegment IN ('VIP', 'Regular', 'Occasional', 'AtRisk', 'New')),
+    CONSTRAINT CHK_LifetimeValueCategory CHECK (LifetimeValueCategory IS NULL OR LifetimeValueCategory IN ('High', 'Medium', 'Low')),
+    CONSTRAINT CHK_DateLogic CHECK (LastPurchaseDate IS NULL OR FirstPurchaseDate IS NULL OR LastPurchaseDate >= FirstPurchaseDate)
+);
+
+CREATE INDEX IX_Customer_HasChurned ON DimCustomer(HasChurned);
+CREATE INDEX IX_Customer_Segment ON DimCustomer(CustomerSegment);
+CREATE INDEX IX_Customer_RecencyScore ON DimCustomer(RecencyScore);
+CREATE INDEX IX_Customer_ChurnRisk ON DimCustomer(ChurnRiskCategory);
+CREATE INDEX IX_Customer_RFMScores ON DimCustomer(RecencyScore, FrequencyScore, MonetaryScore);
+CREATE INDEX IX_Customer_AgeGroup ON DimCustomer(AgeGroup);
+CREATE INDEX IX_Customer_Region ON DimCustomer(Region);
+
+PRINT 'DimCustomer creee';
+
+/*
+====================================================
+TABLE: FactSales
+IMPORTANT: Inclut OrderDate des le depart pour calculs RFMT
+====================================================
+*/
+
+PRINT 'Creation FactSales...';
+
+CREATE TABLE FactSales (
+    SalesKey BIGINT IDENTITY(1,1) PRIMARY KEY,
+    
+    -- Cles
+    TimeKey INT NOT NULL,
+    ProductKey INT NOT NULL,
+    CustomerKey INT NOT NULL,
+    
+    -- EXIGENCE ATELIER: OrderDate pour calculs RFMT
+    OrderDate DATE NOT NULL,
+    
+    -- Mesures transaction
+    OrderQuantity INT NOT NULL,
+    UnitPrice DECIMAL(10,2) NOT NULL,
+    DiscountPercent DECIMAL(5,2) NOT NULL DEFAULT 0,
+    
+    -- Colonnes calculees PERSISTED
+    GrossAmount AS (OrderQuantity * UnitPrice) PERSISTED,
+    DiscountAmount AS (OrderQuantity * UnitPrice * DiscountPercent / 100) PERSISTED,
+    NetAmount AS (OrderQuantity * UnitPrice * (1 - DiscountPercent / 100)) PERSISTED,
+    
+    -- Comportement
+    IsFirstPurchase BIT NOT NULL DEFAULT 0,
+    WasReturned BIT NOT NULL DEFAULT 0,
+    DaysToShip INT NOT NULL DEFAULT 0,
+    
+    -- Contraintes
+    CONSTRAINT CHK_OrderQuantity CHECK (OrderQuantity > 0),
+    CONSTRAINT CHK_UnitPrice CHECK (UnitPrice > 0),
+    CONSTRAINT CHK_DiscountPercent CHECK (DiscountPercent BETWEEN 0 AND 100),
+    CONSTRAINT CHK_DaysToShip CHECK (DaysToShip >= 0),
+    
+    -- Cles etrangeres
+    CONSTRAINT FK_Sales_Time FOREIGN KEY (TimeKey) REFERENCES DimTime(TimeKey),
+    CONSTRAINT FK_Sales_Product FOREIGN KEY (ProductKey) REFERENCES DimProduct(ProductKey),
+    CONSTRAINT FK_Sales_Customer FOREIGN KEY (CustomerKey) REFERENCES DimCustomer(CustomerKey)
+);
+
+-- Index pour performance
+CREATE INDEX IX_Sales_TimeKey ON FactSales(TimeKey);
+CREATE INDEX IX_Sales_ProductKey ON FactSales(ProductKey);
+CREATE INDEX IX_Sales_CustomerKey ON FactSales(CustomerKey);
+CREATE INDEX IX_Sales_OrderDate ON FactSales(OrderDate);
+CREATE INDEX IX_Sales_IsFirstPurchase ON FactSales(IsFirstPurchase);
+CREATE INDEX IX_Sales_WasReturned ON FactSales(WasReturned);
+CREATE INDEX IX_Sales_NetAmount ON FactSales(NetAmount);
+
+-- Index COMPOSES pour calculs RFMT (CRITIQUE!)
+CREATE INDEX IX_Sales_CustomerDate ON FactSales(CustomerKey, OrderDate);
+CREATE INDEX IX_Sales_TimeCustomer ON FactSales(TimeKey, CustomerKey);
+CREATE INDEX IX_Sales_ProductCustomer ON FactSales(ProductKey, CustomerKey);
+
+PRINT 'FactSales creee';
+PRINT '';
+
+/*
+====================================================
+RESUME
+====================================================
+*/
+
+PRINT '====================================================';
+PRINT 'BASE DE DONNEES CREEE AVEC SUCCES';
+PRINT '====================================================';
+PRINT '';
+PRINT 'Tables creees:';
+PRINT '  - DimTime (dimension temporelle)';
+PRINT '  - DimProduct (50 produits chaussures)';
+PRINT '  - DimCustomer (features RFMT - a calculer)';
+PRINT '  - FactSales (avec OrderDate pour RFMT!)';
+PRINT '';
+PRINT 'Points cles:';
+PRINT '  - OrderDate presente dans FactSales';
+PRINT '  - Features RFMT en NULL (calcul apres chargement)';
+PRINT '  - Index optimises pour Data Mining';
+PRINT '';
+PRINT 'Prochaine etape:';
+PRINT '  Executer 02_POPULATE_DIMENSIONS.sql';
+PRINT '====================================================';
+GO
